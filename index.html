@@ -171,7 +171,7 @@
           My Admission <span class="bg-gradient-to-r from-red-500 via-orange-400 to-amber-300 bg-clip-text text-transparent">War</span>
         </h1>
         <p class="mt-4 max-w-xl text-sm leading-relaxed text-zinc-400 sm:text-base">
-          Every interactive study app, digitized question bank, OCR notebook, and focus tool I have built—organized in one pitch-black launchpad.
+          Every interactive study app, question bank, and focus tool for my 2026–27 admission prep—organized in one pitch-black launchpad.
         </p>
       </div>
 
@@ -303,7 +303,7 @@
       <div class="flex items-center gap-2 font-mono">
         <span class="text-zinc-300 font-semibold">MY ADMISSION WAR</span>
         <span>·</span>
-        <span id="footer-count">7 Study Resources</span>
+        <span id="footer-count">4 Study Resources</span>
       </div>
       <div class="flex items-center gap-4">
         <a href="https://github.com/trewqChern" target="_blank" rel="noopener noreferrer" class="transition hover:text-white">
@@ -438,71 +438,17 @@
           ],
         },
         {
-          id: 'bcs-study-notes',
-          title: 'OCR Study Notes (250 Pages)',
-          badge: 'Admission Prep',
-          category: 'admission',
-          accent: 'amber',
-          accentBg: 'bg-amber-500/10 text-amber-400 border-amber-500/25',
-          tagText: '7 Subjects',
-          url: 'https://trewqchern.github.io/bcs-study-notes/',
-          repo: 'https://github.com/trewqChern/bcs-study-notes',
-          description: 'Digitized 250-page OCR study notes cleanly organized across Bangla, English, Bangladesh & International Affairs, Math, and Mental Ability.',
-          icon: 'notes',
-          sublinks: [
-            { label: 'Bangla Literature', url: 'https://trewqchern.github.io/bcs-study-notes/bangla_literature.html' },
-            { label: 'English Literature', url: 'https://trewqchern.github.io/bcs-study-notes/english_literature.html' },
-            { label: 'Bangladesh Affairs', url: 'https://trewqchern.github.io/bcs-study-notes/bangladesh_affairs.html' },
-            { label: 'International Affairs', url: 'https://trewqchern.github.io/bcs-study-notes/international_affairs.html' },
-            { label: 'Mathematics', url: 'https://trewqchern.github.io/bcs-study-notes/mathematics.html' },
-            { label: 'Mental Ability', url: 'https://trewqchern.github.io/bcs-study-notes/mental_ability.html' },
-            { label: 'BCS Syllabus', url: 'https://trewqchern.github.io/bcs-study-notes/bcs_syllabus.html' },
-          ],
-        },
-        {
-          id: 'bangla-birochon',
-          title: 'Bangla Birochon — বাংলা বিরচন',
+          id: 'bangla-birochon-mcq',
+          title: 'বাংলা বিরচন MCQ — DU-B SRS',
           badge: 'Admission Prep',
           category: 'admission',
           accent: 'rose',
           accentBg: 'bg-rose-500/10 text-rose-400 border-rose-500/25',
-          tagText: 'Anki Deck + PDF',
-          url: 'https://drive.google.com/file/d/1lxWRoK_4jAxU71YR-cSJrqbk_c6VSR-M/view?usp=drivesdk',
-          repo: '',
-          actionLabel: 'Open Anki Deck',
-          description: 'Day-by-day Bangla Birochon AnkiDroid deck with context (এক কথায় প্রকাশ, বাগধারা, সমার্থক, বিপরীত, পারিভাষিক শব্দ ও প্রবাদ) plus the full reference PDF.',
+          tagText: 'Offline + SM-2',
+          url: 'https://trewqchern.github.io/bangla-birochon-mcq/',
+          repo: 'https://github.com/trewqChern/bangla-birochon-mcq',
+          description: 'ঢাবি খ-ইউনিট ভর্তি প্রস্তুতির জন্য সমার্থক ও বিপরীত শব্দের অফলাইন MCQ ও SM-2 স্পেসড রিপিটিশন অ্যাপ।',
           icon: 'cards',
-          sublinks: [
-            { label: 'Anki Deck (.apkg)', url: 'https://drive.google.com/file/d/1lxWRoK_4jAxU71YR-cSJrqbk_c6VSR-M/view?usp=drivesdk' },
-            { label: 'বাংলা বিরচন (PDF)', url: 'https://drive.google.com/file/d/130jfjHkmS8CkdZpEhoDmodJsBUl6B_II/view?usp=drivesdk' },
-          ],
-        },
-        {
-          id: 'qcm-mastery',
-          title: 'QCM Mastery',
-          badge: 'Courses',
-          category: 'courses',
-          accent: 'cyan',
-          accentBg: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/25',
-          tagText: 'Interactive Course',
-          url: 'https://trewqchern.github.io/qcm-mastery/',
-          repo: 'https://github.com/trewqChern/qcm-mastery',
-          description: 'Interactive SoloLearn-style Quality Control & Management learning app with bite-sized lessons and mastery checks.',
-          icon: 'layers',
-          sublinks: [],
-        },
-        {
-          id: 'slide2print',
-          title: 'Slide 2 Print',
-          badge: 'Tools & Focus',
-          category: 'tools',
-          accent: 'violet',
-          accentBg: 'bg-violet-500/10 text-violet-400 border-violet-500/25',
-          tagText: 'Study Utility',
-          url: 'https://trewqchern.github.io/Slide2Print/',
-          repo: 'https://github.com/trewqChern/Slide2Print',
-          description: 'Standalone web utility to format lecture slides and study pages into compact, print-ready multi-slide sheets.',
-          icon: 'printer',
           sublinks: [],
         },
         {
@@ -618,7 +564,7 @@
           { key: 'courses', label: 'Courses' },
           { key: 'tools', label: 'Tools & Focus' },
           { key: 'pinned', label: 'Pinned' },
-        ];
+        ].filter((t) => t.key === 'all' || t.key === 'pinned' || counts[t.key] > 0);
 
         container.innerHTML = tabs
           .map((t) => {
