@@ -1,0 +1,18 @@
+{
+  "name": "বিরচন Anki — বাগধারা, প্রবাদ ও অনুবাদ",
+  "short_name": "বিরচন Anki",
+  "description": "বাগধারা, প্রবাদ প্রবচন ও অনুবাদের জন্য অফলাইন Anki স্পেসড রিপিটিশন ক্লোন (DU-B)।",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#050608",
+  "theme_color": "#090A0F",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
