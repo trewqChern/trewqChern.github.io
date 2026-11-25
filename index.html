@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Admission War — Command Center</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+            mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+          },
+          colors: {
+            obsidian: {
+              950: '#000000',
+              900: '#07080a',
+              850: '#0c0d11',
+              800: '#12141a',
+              700: '#1a1d26',
+            }
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+
+    html, body {
+      background-color: #000000;
+      color: #f4f4f5;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Subtle tactical grid backdrop on pure black */
+    .war-grid {
+      background-image:
+        radial-gradient(circle at 50% -10%, rgba(239, 68, 68, 0.14), transparent 52%),
+        radial-gradient(circle at 85% 15%, rgba(16, 185, 129, 0.08), transparent 40%),
+        linear-gradient(to right, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 48px 48px, 48px 48px;
+      background-position: top center;
+    }
+
+    .glass-card {
+      background: linear-gradient(180deg, rgba(16, 17, 22, 0.92) 0%, rgba(9, 10, 13, 0.96) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+                  border-color 0.2s ease,
+                  box-shadow 0.2s ease;
+    }
+
+    .glass-card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(255, 255, 255, 0.18);
+      box-shadow: 0 18px 40px -18px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(255, 255, 255, 0.04);
+    }
+
+    .accent-crimson:hover { border-color: rgba(239, 68, 68, 0.45); box-shadow: 0 18px 40px -20px rgba(239, 68, 68, 0.35); }
+    .accent-emerald:hover { border-color: rgba(16, 185, 129, 0.45); box-shadow: 0 18px 40px -20px rgba(16, 185, 129, 0.32); }
+    .accent-amber:hover { border-color: rgba(245, 158, 11, 0.45); box-shadow: 0 18px 40px -20px rgba(245, 158, 11, 0.30); }
+    .accent-cyan:hover { border-color: rgba(6, 182, 212, 0.45); box-shadow: 0 18px 40px -20px rgba(6, 182, 212, 0.30); }
+    .accent-violet:hover { border-color: rgba(139, 92, 246, 0.45); box-shadow: 0 18px 40px -20px rgba(139, 92, 246, 0.30); }
+    .accent-zinc:hover { border-color: rgba(161, 161, 170, 0.45); box-shadow: 0 18px 40px -20px rgba(255, 255, 255, 0.16); }
+    .accent-rose:hover { border-color: rgba(244, 63, 94, 0.45); box-shadow: 0 18px 40px -20px rgba(244, 63, 94, 0.32); }
+
+    .sublink-pill {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    }
+
+    .sublink-pill:hover {
+      background: rgba(255, 255, 255, 0.09);
+      border-color: rgba(255, 255, 255, 0.22);
+      color: #ffffff;
+    }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.45; transform: scale(0.85); }
+    }
+
+    .live-dot {
+      animation: pulse-dot 2.2s ease-in-out infinite;
+    }
+
+    /* Custom subtle scrollbar */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: #000000; }
+    ::-webkit-scrollbar-thumb { background: #22252e; border-radius: 999px; }
+    ::-webkit-scrollbar-thumb:hover { background: #343947; }
+  </style>
+</head>
+<body class="min-h-screen bg-black text-zinc-100 war-grid selection:bg-red-500/30 selection:text-white">
+
+  <!-- Top Navigation Bar -->
+  <header class="sticky top-0 z-30 border-b border-white/[0.07] bg-black/80 backdrop-blur-xl">
+    <div class="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3.5 sm:px-6">
+      <div class="flex items-center gap-3 min-w-0">
+        <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-red-500/30 bg-red-500/10 text-red-400">
+          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+          </svg>
+        </div>
+        <div class="min-w-0">
+          <div class="flex items-center gap-2">
+            <span class="truncate text-sm font-bold tracking-wider uppercase text-white">My Admission War</span>
+            <span class="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-emerald-400">
+              <span class="h-1.5 w-1.5 rounded-full bg-emerald-400 live-dot"></span>
+              Online
+            </span>
+          </div>
+          <p class="truncate font-mono text-[11px] text-zinc-500">trewqchern.github.io</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 sm:gap-3">
+        <div id="live-clock" class="hidden md:block font-mono text-xs text-zinc-400 tabular-nums px-2.5 py-1.5 rounded-lg border border-white/[0.06] bg-white/[0.02]">
+          --:--:--
+        </div>
+        <button
+          id="open-add-modal-btn"
+          type="button"
+          class="inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/[0.06] px-3 py-2 text-xs font-semibold text-white transition hover:border-white/30 hover:bg-white/[0.12] active:scale-[0.98]"
+        >
+          <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          <span>Add Link</span>
+        </button>
+        <a
+          href="https://github.com/trewqChern"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-zinc-400 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
+          title="GitHub Profile (trewqChern)"
+          aria-label="GitHub Profile"
+        >
+          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+          </svg>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-6xl px-4 pb-20 pt-10 sm:px-6 sm:pt-14">
+
+    <!-- Hero + Countdown Command Strip -->
+    <section class="mb-10 grid grid-cols-1 gap-6 lg:grid-cols-12 lg:items-end">
+      <div class="lg:col-span-7">
+        <div class="mb-4 inline-flex items-center gap-2 rounded-full border border-red-500/25 bg-red-500/10 px-3 py-1 font-mono text-[11px] font-semibold uppercase tracking-widest text-red-400">
+          <span class="h-1.5 w-1.5 rounded-full bg-red-500"></span>
+          2026–27 Campaign HQ
+        </div>
+        <h1 class="text-4xl font-black tracking-tight text-white sm:text-5xl lg:text-6xl">
+          My Admission <span class="bg-gradient-to-r from-red-500 via-orange-400 to-amber-300 bg-clip-text text-transparent">War</span>
+        </h1>
+        <p class="mt-4 max-w-xl text-sm leading-relaxed text-zinc-400 sm:text-base">
+          Every interactive study app, digitized question bank, OCR notebook, and focus tool I have built—organized in one pitch-black launchpad.
+        </p>
+      </div>
+
+      <!-- Countdown Widget -->
+      <div class="lg:col-span-5">
+        <div class="glass-card rounded-2xl p-5">
+          <div class="flex items-center justify-between gap-2 mb-3">
+            <div class="min-w-0">
+              <p class="font-mono text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Next Target Milestone</p>
+              <h2 id="countdown-label" class="truncate text-sm font-bold text-white">JU 2026–27 Admission Window</h2>
+            </div>
+            <button
+              id="open-countdown-modal-btn"
+              type="button"
+              class="shrink-0 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1 font-mono text-[11px] text-zinc-300 transition hover:border-white/25 hover:bg-white/[0.1] hover:text-white"
+            >
+              Edit Target
+            </button>
+          </div>
+          <div class="grid grid-cols-4 gap-2 text-center">
+            <div class="rounded-xl border border-white/[0.06] bg-black/70 py-2.5 px-1">
+              <div id="cd-days" class="font-mono text-2xl font-bold text-white tabular-nums">--</div>
+              <div class="mt-0.5 font-mono text-[10px] uppercase tracking-wider text-zinc-500">Days</div>
+            </div>
+            <div class="rounded-xl border border-white/[0.06] bg-black/70 py-2.5 px-1">
+              <div id="cd-hours" class="font-mono text-2xl font-bold text-white tabular-nums">--</div>
+              <div class="mt-0.5 font-mono text-[10px] uppercase tracking-wider text-zinc-500">Hrs</div>
+            </div>
+            <div class="rounded-xl border border-white/[0.06] bg-black/70 py-2.5 px-1">
+              <div id="cd-mins" class="font-mono text-2xl font-bold text-white tabular-nums">--</div>
+              <div class="mt-0.5 font-mono text-[10px] uppercase tracking-wider text-zinc-500">Min</div>
+            </div>
+            <div class="rounded-xl border border-white/[0.06] bg-black/70 py-2.5 px-1">
+              <div id="cd-secs" class="font-mono text-2xl font-bold text-red-400 tabular-nums">--</div>
+              <div class="mt-0.5 font-mono text-[10px] uppercase tracking-wider text-zinc-500">Sec</div>
+            </div>
+          </div>
+          <p id="countdown-date-display" class="mt-3 font-mono text-[11px] text-zinc-500 text-right">Target: Jan 10, 2027</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Search & Category Filter Bar -->
+    <section class="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div id="category-tabs" class="flex flex-wrap items-center gap-2" role="tablist" aria-label="Filter projects by category">
+        <!-- Populated by JS -->
+      </div>
+
+      <div class="relative w-full sm:w-72">
+        <svg class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <input
+          id="search-input"
+          type="search"
+          placeholder="Search apps or subjects..."
+          autocomplete="off"
+          class="w-full rounded-xl border border-white/10 bg-[#0b0c10] py-2.5 pl-10 pr-10 text-sm text-white placeholder-zinc-500 outline-none transition focus:border-white/30 focus:bg-[#101218]"
+        />
+        <kbd class="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded border border-white/15 bg-white/[0.04] px-1.5 py-0.5 font-mono text-[10px] text-zinc-500 sm:inline-block">/</kbd>
+      </div>
+    </section>
+
+    <!-- Arsenal Grid -->
+    <section aria-label="Deployed projects">
+      <div id="projects-grid" class="grid grid-cols-1 gap-5 md:grid-cols-2">
+        <!-- Cards rendered dynamically -->
+      </div>
+
+      <div id="empty-state" class="hidden rounded-2xl border border-white/[0.08] bg-[#090a0e] p-12 text-center">
+        <p class="text-sm font-medium text-zinc-300">No matching apps or sub-pages found.</p>
+        <p class="mt-1 text-xs text-zinc-500">Try clearing your search query or switching back to All.</p>
+        <button
+          id="reset-filters-btn"
+          type="button"
+          class="mt-4 rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2 text-xs font-semibold text-white transition hover:bg-white/[0.12]"
+        >
+          Reset Filters
+        </button>
+      </div>
+    </section>
+
+    <!-- Today's Mission Targets (Lightweight Scratchpad) -->
+    <section class="mt-12">
+      <div class="glass-card rounded-2xl p-5 sm:p-6">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+          <div class="flex items-center gap-2.5">
+            <span class="flex h-7 w-7 items-center justify-center rounded-lg border border-amber-500/25 bg-amber-500/10 text-amber-400">
+              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="9 11 12 14 22 4"></polyline>
+                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+              </svg>
+            </span>
+            <div>
+              <h2 class="text-sm font-bold text-white">Today's War Log</h2>
+              <p class="text-xs text-zinc-500">Saved locally in your browser. Set targets before launching an app.</p>
+            </div>
+          </div>
+          <span id="mission-progress" class="font-mono text-xs text-zinc-400">0 / 0 done</span>
+        </div>
+
+        <form id="mission-form" class="flex gap-2">
+          <input
+            id="mission-input"
+            type="text"
+            placeholder="Add a study target (e.g., Finish Physics Ch 2 Boss Quiz)..."
+            maxlength="120"
+            class="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/80 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition focus:border-white/30"
+          />
+          <button
+            type="submit"
+            class="shrink-0 rounded-xl bg-white px-4 py-2.5 text-xs font-bold text-black transition hover:bg-zinc-200 active:scale-[0.98]"
+          >
+            Add
+          </button>
+        </form>
+
+        <ul id="mission-list" class="mt-4 space-y-2">
+          <!-- Populated by JS -->
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <!-- Minimal Footer -->
+  <footer class="border-t border-white/[0.06] bg-black/90">
+    <div class="mx-auto flex max-w-6xl flex-col items-center justify-between gap-2 px-4 py-6 text-xs text-zinc-500 sm:flex-row sm:px-6">
+      <div class="flex items-center gap-2 font-mono">
+        <span class="text-zinc-300 font-semibold">MY ADMISSION WAR</span>
+        <span>·</span>
+        <span id="footer-count">7 Study Resources</span>
+      </div>
+      <div class="flex items-center gap-4">
+        <a href="https://github.com/trewqChern" target="_blank" rel="noopener noreferrer" class="transition hover:text-white">
+          github.com/trewqChern
+        </a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Modal: Add Custom Link -->
+  <div id="add-link-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/80 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="add-modal-title">
+    <div class="w-full max-w-md rounded-2xl border border-white/15 bg-[#0c0d11] p-6 shadow-2xl">
+      <div class="flex items-center justify-between mb-4">
+        <h3 id="add-modal-title" class="text-base font-bold text-white">Add Custom Link</h3>
+        <button id="close-add-modal-btn" type="button" class="rounded-lg p-1.5 text-zinc-400 transition hover:bg-white/10 hover:text-white" aria-label="Close modal">
+          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <form id="add-link-form" class="space-y-3.5">
+        <div>
+          <label for="new-link-title" class="mb-1 block text-xs font-medium text-zinc-400">Title</label>
+          <input id="new-link-title" type="text" required maxlength="60" placeholder="e.g. Bangla 1st Paper Notes" class="w-full rounded-xl border border-white/10 bg-black px-3.5 py-2.5 text-sm text-white placeholder-zinc-600 outline-none focus:border-white/30" />
+        </div>
+        <div>
+          <label for="new-link-url" class="mb-1 block text-xs font-medium text-zinc-400">URL</label>
+          <input id="new-link-url" type="url" required placeholder="https://trewqchern.github.io/..." class="w-full rounded-xl border border-white/10 bg-black px-3.5 py-2.5 text-sm text-white placeholder-zinc-600 outline-none focus:border-white/30" />
+        </div>
+        <div>
+          <label for="new-link-desc" class="mb-1 block text-xs font-medium text-zinc-400">Short Description</label>
+          <input id="new-link-desc" type="text" maxlength="120" placeholder="What is this resource for?" class="w-full rounded-xl border border-white/10 bg-black px-3.5 py-2.5 text-sm text-white placeholder-zinc-600 outline-none focus:border-white/30" />
+        </div>
+        <div>
+          <label for="new-link-category" class="mb-1 block text-xs font-medium text-zinc-400">Category</label>
+          <select id="new-link-category" class="w-full rounded-xl border border-white/10 bg-black px-3.5 py-2.5 text-sm text-white outline-none focus:border-white/30">
+            <option value="admission">Admission Prep</option>
+            <option value="courses">Courses</option>
+            <option value="tools">Tools & Focus</option>
+          </select>
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button id="cancel-add-modal-btn" type="button" class="rounded-xl border border-white/10 px-4 py-2 text-xs font-semibold text-zinc-300 transition hover:bg-white/[0.06]">Cancel</button>
+          <button type="submit" class="rounded-xl bg-white px-4 py-2 text-xs font-bold text-black transition hover:bg-zinc-200">Save Link</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Edit Countdown Target -->
+  <div id="countdown-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/80 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="cd-modal-title">
+    <div class="w-full max-w-md rounded-2xl border border-white/15 bg-[#0c0d11] p-6 shadow-2xl">
+      <div class="flex items-center justify-between mb-4">
+        <h3 id="cd-modal-title" class="text-base font-bold text-white">Edit Countdown Target</h3>
+        <button id="close-cd-modal-btn" type="button" class="rounded-lg p-1.5 text-zinc-400 transition hover:bg-white/10 hover:text-white" aria-label="Close modal">
+          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <form id="countdown-form" class="space-y-3.5">
+        <div>
+          <label for="cd-label-input" class="mb-1 block text-xs font-medium text-zinc-400">Milestone Name</label>
+          <input id="cd-label-input" type="text" required maxlength="60" class="w-full rounded-xl border border-white/10 bg-black px-3.5 py-2.5 text-sm text-white outline-none focus:border-white/30" />
+        </div>
+        <div>
+          <label for="cd-date-input" class="mb-1 block text-xs font-medium text-zinc-400">Target Date</label>
+          <input id="cd-date-input" type="date" required class="w-full rounded-xl border border-white/10 bg-black px-3.5 py-2.5 text-sm text-white outline-none focus:border-white/30" />
+        </div>
+        <div class="flex items-center justify-between pt-2">
+          <button id="reset-cd-btn" type="button" class="text-xs font-medium text-zinc-400 underline-offset-4 hover:text-white hover:underline">Reset to JU (Jan 10, 2027)</button>
+          <div class="flex gap-2">
+            <button id="cancel-cd-modal-btn" type="button" class="rounded-xl border border-white/10 px-4 py-2 text-xs font-semibold text-zinc-300 transition hover:bg-white/[0.06]">Cancel</button>
+            <button type="submit" class="rounded-xl bg-white px-4 py-2 text-xs font-bold text-black transition hover:bg-zinc-200">Save</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="pointer-events-none fixed bottom-5 right-5 z-50 translate-y-3 opacity-0 transition-all duration-200">
+    <div id="toast-text" class="rounded-xl border border-white/15 bg-[#12141a] px-4 py-2.5 text-xs font-medium text-white shadow-2xl"></div>
+  </div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      const STORAGE_KEYS = {
+        pinned: 'maw_pinned_v1',
+        customLinks: 'maw_custom_links_v1',
+        countdown: 'maw_countdown_v1',
+        missions: 'maw_missions_v1',
+      };
+
+      const DEFAULT_COUNTDOWN = {
+        label: 'JU 2026–27 Admission Window',
+        date: '2027-01-10',
+      };
+
+      const CORE_PROJECTS = [
+        {
+          id: 'physicslab-2nd-paper',
+          title: 'PhysicsLab — 2nd Paper',
+          badge: 'Admission Prep',
+          category: 'admission',
+          accent: 'crimson',
+          accentBg: 'bg-red-500/10 text-red-400 border-red-500/25',
+          tagText: 'HSC + DU Ka',
+          url: 'https://trewqchern.github.io/physicslab-2nd-paper/',
+          repo: 'https://github.com/trewqChern/physicslab-2nd-paper',
+          description: 'Interactive HSC Physics 2nd Paper & DU "Ka" admission app with Strict Learning Mode, formula vault, Boss Quizzes, and SRS revision drills.',
+          icon: 'atom',
+          sublinks: [],
+        },
+        {
+          id: 'zubairs-gk',
+          title: "Zubair's GK — ভর্তি সহায়িকা",
+          badge: 'Admission Prep',
+          category: 'admission',
+          accent: 'emerald',
+          accentBg: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25',
+          tagText: 'DU B & C + GST',
+          url: 'https://trewqchern.github.io/zubairs-gk/',
+          repo: 'https://github.com/trewqChern/zubairs-gk',
+          description: 'High-yield admission question bank, highlighted chapters, flashcards, and full textbook transcription for DU B & C Units and GST.',
+          icon: 'book',
+          sublinks: [
+            { label: 'Top 2,000 DU B-Unit', url: 'https://trewqchern.github.io/zubairs-gk/du_b_unit_gk_top_2000.html' },
+            { label: 'Highlighted Part 1', url: 'https://trewqchern.github.io/zubairs-gk/highlighted_part1.html' },
+            { label: 'Highlighted Part 2', url: 'https://trewqchern.github.io/zubairs-gk/highlighted_part2.html' },
+            { label: 'DU B & C Highlights', url: 'https://trewqchern.github.io/zubairs-gk/highlighted_du_bc.html' },
+            { label: 'Flashcards', url: 'https://trewqchern.github.io/zubairs-gk/flashcards.html' },
+            { label: 'Complete Bank', url: 'https://trewqchern.github.io/zubairs-gk/complete.html' },
+          ],
+        },
+        {
+          id: 'bcs-study-notes',
+          title: 'OCR Study Notes (250 Pages)',
+          badge: 'Admission Prep',
+          category: 'admission',
+          accent: 'amber',
+          accentBg: 'bg-amber-500/10 text-amber-400 border-amber-500/25',
+          tagText: '7 Subjects',
+          url: 'https://trewqchern.github.io/bcs-study-notes/',
+          repo: 'https://github.com/trewqChern/bcs-study-notes',
+          description: 'Digitized 250-page OCR study notes cleanly organized across Bangla, English, Bangladesh & International Affairs, Math, and Mental Ability.',
+          icon: 'notes',
+          sublinks: [
+            { label: 'Bangla Literature', url: 'https://trewqchern.github.io/bcs-study-notes/bangla_literature.html' },
+            { label: 'English Literature', url: 'https://trewqchern.github.io/bcs-study-notes/english_literature.html' },
+            { label: 'Bangladesh Affairs', url: 'https://trewqchern.github.io/bcs-study-notes/bangladesh_affairs.html' },
+            { label: 'International Affairs', url: 'https://trewqchern.github.io/bcs-study-notes/international_affairs.html' },
+            { label: 'Mathematics', url: 'https://trewqchern.github.io/bcs-study-notes/mathematics.html' },
+            { label: 'Mental Ability', url: 'https://trewqchern.github.io/bcs-study-notes/mental_ability.html' },
+            { label: 'BCS Syllabus', url: 'https://trewqchern.github.io/bcs-study-notes/bcs_syllabus.html' },
+          ],
+        },
+        {
+          id: 'bangla-birochon',
+          title: 'Bangla Birochon — বাংলা বিরচন',
+          badge: 'Admission Prep',
+          category: 'admission',
+          accent: 'rose',
+          accentBg: 'bg-rose-500/10 text-rose-400 border-rose-500/25',
+          tagText: 'Anki Deck + PDF',
+          url: 'https://drive.google.com/file/d/1lxWRoK_4jAxU71YR-cSJrqbk_c6VSR-M/view?usp=drivesdk',
+          repo: '',
+          actionLabel: 'Open Anki Deck',
+          description: 'Day-by-day Bangla Birochon AnkiDroid deck with context (এক কথায় প্রকাশ, বাগধারা, সমার্থক, বিপরীত, পারিভাষিক শব্দ ও প্রবাদ) plus the full reference PDF.',
+          icon: 'cards',
+          sublinks: [
+            { label: 'Anki Deck (.apkg)', url: 'https://drive.google.com/file/d/1lxWRoK_4jAxU71YR-cSJrqbk_c6VSR-M/view?usp=drivesdk' },
+            { label: 'বাংলা বিরচন (PDF)', url: 'https://drive.google.com/file/d/130jfjHkmS8CkdZpEhoDmodJsBUl6B_II/view?usp=drivesdk' },
+          ],
+        },
+        {
+          id: 'qcm-mastery',
+          title: 'QCM Mastery',
+          badge: 'Courses',
+          category: 'courses',
+          accent: 'cyan',
+          accentBg: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/25',
+          tagText: 'Interactive Course',
+          url: 'https://trewqchern.github.io/qcm-mastery/',
+          repo: 'https://github.com/trewqChern/qcm-mastery',
+          description: 'Interactive SoloLearn-style Quality Control & Management learning app with bite-sized lessons and mastery checks.',
+          icon: 'layers',
+          sublinks: [],
+        },
+        {
+          id: 'slide2print',
+          title: 'Slide 2 Print',
+          badge: 'Tools & Focus',
+          category: 'tools',
+          accent: 'violet',
+          accentBg: 'bg-violet-500/10 text-violet-400 border-violet-500/25',
+          tagText: 'Study Utility',
+          url: 'https://trewqchern.github.io/Slide2Print/',
+          repo: 'https://github.com/trewqChern/Slide2Print',
+          description: 'Standalone web utility to format lecture slides and study pages into compact, print-ready multi-slide sheets.',
+          icon: 'printer',
+          sublinks: [],
+        },
+        {
+          id: 'focuslab-boot',
+          title: 'FocusLab — Identity Integrity',
+          badge: 'Tools & Focus',
+          category: 'tools',
+          accent: 'zinc',
+          accentBg: 'bg-zinc-500/15 text-zinc-300 border-zinc-500/30',
+          tagText: 'Focus System',
+          url: 'https://trewqchern.github.io/boot/',
+          repo: 'https://github.com/trewqChern/boot',
+          description: 'Personal Identity Integrity System & focus evolution tracker built to stay locked in during intense study sprints.',
+          icon: 'target',
+          sublinks: [],
+        },
+      ];
+
+      // Safe localStorage helpers
+      function loadJSON(key, fallback) {
+        try {
+          const raw = localStorage.getItem(key);
+          return raw ? JSON.parse(raw) : fallback;
+        } catch (e) {
+          return fallback;
+        }
+      }
+
+      function saveJSON(key, value) {
+        try {
+          localStorage.setItem(key, JSON.stringify(value));
+        } catch (e) {
+          // Ignore storage quota or sandbox restrictions
+        }
+      }
+
+      // Application state
+      const state = {
+        category: 'all',
+        query: '',
+        pinned: loadJSON(STORAGE_KEYS.pinned, ['physicslab-2nd-paper', 'zubairs-gk']),
+        customLinks: loadJSON(STORAGE_KEYS.customLinks, []),
+        countdown: loadJSON(STORAGE_KEYS.countdown, DEFAULT_COUNTDOWN),
+        missions: loadJSON(STORAGE_KEYS.missions, []),
+        collapsedSublinks: {},
+      };
+
+      // SVG Icons
+      function getIconSvg(name) {
+        switch (name) {
+          case 'atom':
+            return '<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1.5" fill="currentColor"></circle><ellipse cx="12" cy="12" rx="9" ry="4" transform="rotate(30 12 12)"></ellipse><ellipse cx="12" cy="12" rx="9" ry="4" transform="rotate(-30 12 12)"></ellipse><ellipse cx="12" cy="12" rx="9" ry="4" transform="rotate(90 12 12)"></ellipse></svg>';
+          case 'book':
+            return '<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>';
+          case 'notes':
+            return '<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>';
+          case 'layers':
+            return '<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>';
+          case 'printer':
+            return '<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>';
+          case 'target':
+            return '<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle></svg>';
+          case 'cards':
+            return '<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="14" height="14" rx="2"></rect><path d="M7 3h12a2 2 0 0 1 2 2v12"></path></svg>';
+          default:
+            return '<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>';
+        }
+      }
+
+      function escapeHtml(str) {
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      // Toast helper
+      let toastTimer = null;
+      function showToast(msg) {
+        const toast = document.getElementById('toast');
+        const text = document.getElementById('toast-text');
+        if (!toast || !text) return;
+        text.textContent = msg;
+        toast.classList.remove('opacity-0', 'translate-y-3');
+        toast.classList.add('opacity-100', 'translate-y-0');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => {
+          toast.classList.add('opacity-0', 'translate-y-3');
+          toast.classList.remove('opacity-100', 'translate-y-0');
+        }, 2400);
+      }
+
+      function getAllProjects() {
+        return [...CORE_PROJECTS, ...state.customLinks];
+      }
+
+      function renderCategoryTabs() {
+        const container = document.getElementById('category-tabs');
+        const all = getAllProjects();
+        const counts = {
+          all: all.length,
+          admission: all.filter((p) => p.category === 'admission').length,
+          courses: all.filter((p) => p.category === 'courses').length,
+          tools: all.filter((p) => p.category === 'tools').length,
+          pinned: all.filter((p) => state.pinned.includes(p.id)).length,
+        };
+
+        const tabs = [
+          { key: 'all', label: 'All' },
+          { key: 'admission', label: 'Admission Prep' },
+          { key: 'courses', label: 'Courses' },
+          { key: 'tools', label: 'Tools & Focus' },
+          { key: 'pinned', label: 'Pinned' },
+        ];
+
+        container.innerHTML = tabs
+          .map((t) => {
+            const active = state.category === t.key;
+            const cls = active
+              ? 'border-white/30 bg-white text-black font-bold'
+              : 'border-white/10 bg-[#0b0c10] text-zinc-400 hover:border-white/20 hover:text-white font-medium';
+            const countCls = active ? 'bg-black/15 text-black' : 'bg-white/[0.06] text-zinc-400';
+            return `
+              <button
+                type="button"
+                data-category="${t.key}"
+                role="tab"
+                aria-selected="${active}"
+                class="inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs transition ${cls}"
+              >
+                <span>${t.label}</span>
+                <span class="rounded-md px-1.5 py-0.5 font-mono text-[10px] ${countCls}">${counts[t.key]}</span>
+              </button>
+            `;
+          })
+          .join('');
+      }
+
+      function renderProjects() {
+        const grid = document.getElementById('projects-grid');
+        const empty = document.getElementById('empty-state');
+        const footerCount = document.getElementById('footer-count');
+        const all = getAllProjects();
+
+        if (footerCount) {
+          footerCount.textContent = `${all.length} Study ${all.length === 1 ? 'Resource' : 'Resources'}`;
+        }
+
+        const q = state.query.trim().toLowerCase();
+        let filtered = all.filter((p) => {
+          if (state.category === 'pinned' && !state.pinned.includes(p.id)) return false;
+          if (state.category !== 'all' && state.category !== 'pinned' && p.category !== state.category) return false;
+          if (!q) return true;
+          const hay = [
+            p.title,
+            p.description,
+            p.tagText || '',
+            p.badge || '',
+            ...(p.sublinks || []).map((s) => s.label),
+          ]
+            .join(' ')
+            .toLowerCase();
+          return hay.includes(q);
+        });
+
+        // Sort pinned first
+        filtered.sort((a, b) => {
+          const ap = state.pinned.includes(a.id) ? 0 : 1;
+          const bp = state.pinned.includes(b.id) ? 0 : 1;
+          return ap - bp;
+        });
+
+        if (filtered.length === 0) {
+          grid.innerHTML = '';
+          empty.classList.remove('hidden');
+          return;
+        }
+
+        empty.classList.add('hidden');
+
+        grid.innerHTML = filtered
+          .map((p) => {
+            const isPinned = state.pinned.includes(p.id);
+            const hasSublinks = Array.isArray(p.sublinks) && p.sublinks.length > 0;
+            const isCollapsed = Boolean(state.collapsedSublinks[p.id]);
+
+            const sublinksHtml = hasSublinks
+              ? `
+                <div class="mt-4 border-t border-white/[0.07] pt-3.5">
+                  <button
+                    type="button"
+                    data-toggle-sub="${escapeHtml(p.id)}"
+                    class="flex w-full items-center justify-between text-left font-mono text-[11px] font-semibold uppercase tracking-wider text-zinc-400 transition hover:text-white"
+                  >
+                    <span>Quick Jump (${p.sublinks.length} Pages)</span>
+                    <svg class="h-3.5 w-3.5 transition-transform ${isCollapsed ? '' : 'rotate-180'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                  </button>
+                  <div class="${isCollapsed ? 'hidden' : 'mt-2.5 flex flex-wrap gap-1.5'}">
+                    ${p.sublinks
+                      .map((s) => {
+                        const match = q && s.label.toLowerCase().includes(q);
+                        const hl = match ? 'border-amber-400/50 bg-amber-400/15 text-amber-200' : 'text-zinc-300';
+                        return `
+                          <a
+                            href="${escapeHtml(s.url)}"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="sublink-pill inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium ${hl}"
+                          >
+                            <span>${escapeHtml(s.label)}</span>
+                            <svg class="h-3 w-3 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"></line><polyline points="7 7 17 7 17 17"></polyline></svg>
+                          </a>
+                        `;
+                      })
+                      .join('')}
+                  </div>
+                </div>
+              `
+              : '';
+
+            const deleteBtn = p.custom
+              ? `
+                <button
+                  type="button"
+                  data-delete-custom="${escapeHtml(p.id)}"
+                  title="Remove custom link"
+                  aria-label="Remove custom link"
+                  class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] text-zinc-500 transition hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-400"
+                >
+                  <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path></svg>
+                </button>
+              `
+              : '';
+
+            const repoBtn = p.repo
+              ? `
+                <a
+                  href="${escapeHtml(p.repo)}"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-medium text-zinc-400 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
+                >
+                  <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+                  <span>Repo</span>
+                </a>
+              `
+              : '';
+
+            return `
+              <article class="glass-card accent-${escapeHtml(p.accent || 'zinc')} flex flex-col justify-between rounded-2xl p-5 sm:p-6">
+                <div>
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="flex items-center gap-3 min-w-0">
+                      <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${escapeHtml(p.accentBg || 'bg-zinc-500/15 text-zinc-300 border-zinc-500/30')}">
+                        ${getIconSvg(p.icon)}
+                      </div>
+                      <div class="min-w-0">
+                        <div class="flex flex-wrap items-center gap-1.5">
+                          <span class="font-mono text-[10px] font-semibold uppercase tracking-wider text-zinc-500">${escapeHtml(p.badge || 'Custom')}</span>
+                          ${p.tagText ? `<span class="rounded border border-white/10 bg-white/[0.04] px-1.5 py-0.5 font-mono text-[10px] text-zinc-300">${escapeHtml(p.tagText)}</span>` : ''}
+                        </div>
+                        <h3 class="mt-0.5 truncate text-base font-bold text-white sm:text-lg">${escapeHtml(p.title)}</h3>
+                      </div>
+                    </div>
+
+                    <div class="flex shrink-0 items-center gap-1.5">
+                      <button
+                        type="button"
+                        data-pin="${escapeHtml(p.id)}"
+                        title="${isPinned ? 'Unpin' : 'Pin to top'}"
+                        aria-label="${isPinned ? 'Unpin' : 'Pin to top'}"
+                        class="inline-flex h-8 w-8 items-center justify-center rounded-lg border transition ${
+                          isPinned
+                            ? 'border-amber-400/40 bg-amber-400/15 text-amber-300'
+                            : 'border-white/10 bg-white/[0.03] text-zinc-500 hover:border-white/25 hover:text-white'
+                        }"
+                      >
+                        <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="${isPinned ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                      </button>
+                      ${deleteBtn}
+                    </div>
+                  </div>
+
+                  <p class="mt-3 text-sm leading-relaxed text-zinc-400">${escapeHtml(p.description)}</p>
+                  ${sublinksHtml}
+                </div>
+
+                <div class="mt-5 flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-white/[0.06]">
+                  <a
+                    href="${escapeHtml(p.url)}"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-xs font-bold text-black transition hover:bg-zinc-200 active:scale-[0.98]"
+                  >
+                    <span>${escapeHtml(p.actionLabel || 'Launch App')}</span>
+                    <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"></line><polyline points="7 7 17 7 17 17"></polyline></svg>
+                  </a>
+                  ${repoBtn}
+                </div>
+              </article>
+            `;
+          })
+          .join('');
+      }
+
+      function renderMissions() {
+        const list = document.getElementById('mission-list');
+        const progress = document.getElementById('mission-progress');
+        const total = state.missions.length;
+        const done = state.missions.filter((m) => m.done).length;
+        progress.textContent = `${done} / ${total} done`;
+
+        if (total === 0) {
+          list.innerHTML = '<li class="rounded-xl border border-dashed border-white/10 py-4 text-center text-xs text-zinc-500">No targets set yet. Add your first study target above.</li>';
+          return;
+        }
+
+        list.innerHTML = state.missions
+          .map(
+            (m) => `
+              <li class="flex items-center justify-between gap-3 rounded-xl border border-white/[0.07] bg-black/60 px-3.5 py-2.5">
+                <label class="flex min-w-0 flex-1 cursor-pointer items-center gap-3">
+                  <input
+                    type="checkbox"
+                    data-toggle-mission="${escapeHtml(m.id)}"
+                    ${m.done ? 'checked' : ''}
+                    class="h-4 w-4 rounded border-white/25 bg-black text-emerald-500 accent-emerald-500"
+                  />
+                  <span class="truncate text-sm ${m.done ? 'text-zinc-500 line-through' : 'text-zinc-200'}">${escapeHtml(m.text)}</span>
+                </label>
+                <button
+                  type="button"
+                  data-delete-mission="${escapeHtml(m.id)}"
+                  aria-label="Delete target"
+                  class="rounded-lg p-1 text-zinc-500 transition hover:bg-white/10 hover:text-red-400"
+                >
+                  <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+              </li>
+            `
+          )
+          .join('');
+      }
+
+      // Live Clock & Countdown
+      function updateTimeAndCountdown() {
+        const now = new Date();
+        const clockEl = document.getElementById('live-clock');
+        if (clockEl) {
+          clockEl.textContent = now.toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: true,
+          });
+        }
+
+        const labelEl = document.getElementById('countdown-label');
+        const dateDisplayEl = document.getElementById('countdown-date-display');
+        const daysEl = document.getElementById('cd-days');
+        const hoursEl = document.getElementById('cd-hours');
+        const minsEl = document.getElementById('cd-mins');
+        const secsEl = document.getElementById('cd-secs');
+
+        if (labelEl) labelEl.textContent = state.countdown.label;
+
+        const targetDate = new Date(`${state.countdown.date}T09:00:00+06:00`);
+        if (dateDisplayEl && state.countdown.date) {
+          const parts = state.countdown.date.split('-').map(Number);
+          if (parts.length === 3 && !parts.some(isNaN)) {
+            const displayDate = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+            dateDisplayEl.textContent = `Target: ${displayDate.toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+              timeZone: 'UTC',
+            })}`;
+          }
+        }
+
+        const diff = targetDate.getTime() - now.getTime();
+        if (isNaN(diff) || diff <= 0) {
+          daysEl.textContent = '00';
+          hoursEl.textContent = '00';
+          minsEl.textContent = '00';
+          secsEl.textContent = '00';
+          return;
+        }
+
+        const totalSecs = Math.floor(diff / 1000);
+        const days = Math.floor(totalSecs / 86400);
+        const hours = Math.floor((totalSecs % 86400) / 3600);
+        const mins = Math.floor((totalSecs % 3600) / 60);
+        const secs = totalSecs % 60;
+
+        daysEl.textContent = String(days).padStart(2, '0');
+        hoursEl.textContent = String(hours).padStart(2, '0');
+        minsEl.textContent = String(mins).padStart(2, '0');
+        secsEl.textContent = String(secs).padStart(2, '0');
+      }
+
+      // Event Listeners
+      document.getElementById('category-tabs').addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-category]');
+        if (!btn) return;
+        state.category = btn.getAttribute('data-category');
+        renderCategoryTabs();
+        renderProjects();
+      });
+
+      const searchInput = document.getElementById('search-input');
+      searchInput.addEventListener('input', (e) => {
+        state.query = e.target.value;
+        renderProjects();
+      });
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+          e.preventDefault();
+          searchInput.focus();
+        }
+        if (e.key === 'Escape') {
+          closeAddModal();
+          closeCountdownModal();
+        }
+      });
+
+      document.getElementById('reset-filters-btn').addEventListener('click', () => {
+        state.category = 'all';
+        state.query = '';
+        searchInput.value = '';
+        renderCategoryTabs();
+        renderProjects();
+      });
+
+      document.getElementById('projects-grid').addEventListener('click', (e) => {
+        const pinBtn = e.target.closest('button[data-pin]');
+        if (pinBtn) {
+          const id = pinBtn.getAttribute('data-pin');
+          if (state.pinned.includes(id)) {
+            state.pinned = state.pinned.filter((x) => x !== id);
+            showToast('Unpinned from top');
+          } else {
+            state.pinned.push(id);
+            showToast('Pinned to top');
+          }
+          saveJSON(STORAGE_KEYS.pinned, state.pinned);
+          renderCategoryTabs();
+          renderProjects();
+          return;
+        }
+
+        const toggleSub = e.target.closest('button[data-toggle-sub]');
+        if (toggleSub) {
+          const id = toggleSub.getAttribute('data-toggle-sub');
+          state.collapsedSublinks[id] = !state.collapsedSublinks[id];
+          renderProjects();
+          return;
+        }
+
+        const delCustom = e.target.closest('button[data-delete-custom]');
+        if (delCustom) {
+          const id = delCustom.getAttribute('data-delete-custom');
+          state.customLinks = state.customLinks.filter((x) => x.id !== id);
+          state.pinned = state.pinned.filter((x) => x !== id);
+          saveJSON(STORAGE_KEYS.customLinks, state.customLinks);
+          saveJSON(STORAGE_KEYS.pinned, state.pinned);
+          renderCategoryTabs();
+          renderProjects();
+          showToast('Custom link removed');
+        }
+      });
+
+      // Missions
+      document.getElementById('mission-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const input = document.getElementById('mission-input');
+        const text = input.value.trim();
+        if (!text) return;
+        state.missions.unshift({ id: 'm_' + Date.now(), text, done: false });
+        saveJSON(STORAGE_KEYS.missions, state.missions);
+        input.value = '';
+        renderMissions();
+      });
+
+      document.getElementById('mission-list').addEventListener('change', (e) => {
+        const cb = e.target.closest('input[data-toggle-mission]');
+        if (!cb) return;
+        const id = cb.getAttribute('data-toggle-mission');
+        state.missions = state.missions.map((m) => (m.id === id ? { ...m, done: cb.checked } : m));
+        saveJSON(STORAGE_KEYS.missions, state.missions);
+        renderMissions();
+      });
+
+      document.getElementById('mission-list').addEventListener('click', (e) => {
+        const del = e.target.closest('button[data-delete-mission]');
+        if (!del) return;
+        const id = del.getAttribute('data-delete-mission');
+        state.missions = state.missions.filter((m) => m.id !== id);
+        saveJSON(STORAGE_KEYS.missions, state.missions);
+        renderMissions();
+      });
+
+      // Add Custom Link Modal
+      const addModal = document.getElementById('add-link-modal');
+      function openAddModal() {
+        addModal.classList.remove('hidden');
+        addModal.classList.add('flex');
+        document.getElementById('new-link-title').focus();
+      }
+      function closeAddModal() {
+        addModal.classList.add('hidden');
+        addModal.classList.remove('flex');
+      }
+
+      document.getElementById('open-add-modal-btn').addEventListener('click', openAddModal);
+      document.getElementById('close-add-modal-btn').addEventListener('click', closeAddModal);
+      document.getElementById('cancel-add-modal-btn').addEventListener('click', closeAddModal);
+      addModal.addEventListener('click', (e) => {
+        if (e.target === addModal) closeAddModal();
+      });
+
+      document.getElementById('add-link-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const title = document.getElementById('new-link-title').value.trim();
+        const url = document.getElementById('new-link-url').value.trim();
+        const desc = document.getElementById('new-link-desc').value.trim() || 'Custom saved study link.';
+        const category = document.getElementById('new-link-category').value;
+        const badgeMap = { admission: 'Admission Prep', courses: 'Courses', tools: 'Tools & Focus' };
+
+        state.customLinks.push({
+          id: 'custom_' + Date.now(),
+          title,
+          url,
+          description: desc,
+          category,
+          badge: badgeMap[category] || 'Custom',
+          tagText: 'Custom',
+          accent: 'zinc',
+          accentBg: 'bg-white/10 text-white border-white/20',
+          icon: 'link',
+          sublinks: [],
+          custom: true,
+        });
+        saveJSON(STORAGE_KEYS.customLinks, state.customLinks);
+        e.target.reset();
+        closeAddModal();
+        renderCategoryTabs();
+        renderProjects();
+        showToast(`Added "${title}"`);
+      });
+
+      // Countdown Modal
+      const cdModal = document.getElementById('countdown-modal');
+      function openCountdownModal() {
+        document.getElementById('cd-label-input').value = state.countdown.label;
+        document.getElementById('cd-date-input').value = state.countdown.date;
+        cdModal.classList.remove('hidden');
+        cdModal.classList.add('flex');
+      }
+      function closeCountdownModal() {
+        cdModal.classList.add('hidden');
+        cdModal.classList.remove('flex');
+      }
+
+      document.getElementById('open-countdown-modal-btn').addEventListener('click', openCountdownModal);
+      document.getElementById('close-cd-modal-btn').addEventListener('click', closeCountdownModal);
+      document.getElementById('cancel-cd-modal-btn').addEventListener('click', closeCountdownModal);
+      cdModal.addEventListener('click', (e) => {
+        if (e.target === cdModal) closeCountdownModal();
+      });
+
+      document.getElementById('countdown-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const label = document.getElementById('cd-label-input').value.trim();
+        const date = document.getElementById('cd-date-input').value;
+        if (!label || !date) return;
+        state.countdown = { label, date };
+        saveJSON(STORAGE_KEYS.countdown, state.countdown);
+        updateTimeAndCountdown();
+        closeCountdownModal();
+        showToast('Countdown updated');
+      });
+
+      document.getElementById('reset-cd-btn').addEventListener('click', () => {
+        state.countdown = { ...DEFAULT_COUNTDOWN };
+        saveJSON(STORAGE_KEYS.countdown, state.countdown);
+        updateTimeAndCountdown();
+        closeCountdownModal();
+        showToast('Reset to JU admission window');
+      });
+
+      // Initial render
+      renderCategoryTabs();
+      renderProjects();
+      renderMissions();
+      updateTimeAndCountdown();
+      setInterval(updateTimeAndCountdown, 1000);
+    })();
+  </script>
+</body>
+</html>
