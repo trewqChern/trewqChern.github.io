@@ -694,7 +694,7 @@
       return cardDay === f;
     }
 
-    let studyFilter = { day: 'all', cat: 'all' }, activeCard = null, isFlipped = false, lapseQueue = [];
+    let studyFilter = { day: 'all', cat: 'all' }, activeCard = null, isFlipped = false, flippedAt = 0, lapseQueue = [];
 
     function getStudyPool() {
       return getAllCards().filter(c => {
@@ -846,18 +846,24 @@
       });
       document.getElementById('actDelete').addEventListener('click', () => deleteCardSoft(c.id));
 
-      let sx = 0, sy = 0;
+      let sx = 0, sy = 0, touchStartedFlipped = false;
       const el = document.getElementById('activeAnkiCard');
-      el.addEventListener('touchstart', (e) => { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, { passive: true });
+      el.addEventListener('touchstart', (e) => {
+        sx = e.touches[0].clientX; sy = e.touches[0].clientY;
+        touchStartedFlipped = isFlipped && (Date.now() - flippedAt >= 350);
+      }, { passive: true });
       el.addEventListener('touchend', (e) => {
+        if (!touchStartedFlipped) return;
         const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
-        if (Math.abs(dx) > 75 && Math.abs(dy) < 50 && isFlipped) rateCard(dx > 0 ? 3 : 1);
+        if (Math.abs(dx) > 95 && Math.abs(dy) < 40 && isFlipped) rateCard(dx > 0 ? 3 : 1);
       }, { passive: true });
     }
 
-    function flipCard() {
+    function flipCard(ev) {
+      if (ev && ev.stopPropagation) ev.stopPropagation();
       if (isFlipped || !activeCard) return;
       isFlipped = true;
+      flippedAt = Date.now();
       document.getElementById('ansZone').style.display = 'block';
       const s = getSRS(activeCard.id);
       const r1 = previewNext(s, 1), r2 = previewNext(s, 2), r3 = previewNext(s, 3), r4 = previewNext(s, 4);
@@ -872,7 +878,7 @@
     }
 
     function rateCard(q) {
-      if (!activeCard) return;
+      if (!activeCard || !isFlipped || (Date.now() - flippedAt < 350)) return;
       const id = activeCard.id; pushUndo('রেটিং', id);
       const s = Object.assign({}, getSRS(id)), now = Date.now();
       if (q === 1) {
@@ -923,6 +929,7 @@
     document.getElementById('typeModeBtn').addEventListener('click', () => { state.prefs.typeMode = !state.prefs.typeMode; saveState(); syncPrefBtns(); renderStudy(activeCard); });
 
     document.addEventListener('keydown', (e) => {
+      if (e.repeat) return;
       if (document.activeElement && ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) return;
       if (!document.getElementById('view-study').classList.contains('active')) return;
       if (e.key === ' ') { e.preventDefault(); if (!isFlipped) flipCard(); else rateCard(3); }
