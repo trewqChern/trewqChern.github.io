@@ -1089,26 +1089,89 @@ const MODULES = [
   }
 ];
 
-// Build flat index of all lessons & MCQs with unique IDs
-const ALL_LESSONS = [];
-const ALL_MCQS = [];
+const AI_LESSON_API = 'https://du-b-grammar-sync.treytrewq61.workers.dev/ai/generate-lesson';
+
+// Tailored probable confusions suggested right after completing each lesson
+const LESSON_CONFUSIONS = {
+  s1: ['অলুক দ্বন্দ্ব vs অলুক তৎপুরুষ vs অলুক বহুব্রীহি', 'একশেষ দ্বন্দ্ব vs নিত্য সমাস', 'দ্বন্দ্ব সমাস vs ব্যতিহার বহুব্রীহি'],
+  s2: ['উপমান vs উপমিত কর্মধারয় সমাস', 'উপমিত vs রূপক কর্মধারয় সমাস', 'মধ্যপদলোপী কর্মধারয় vs মধ্যপদলোপী বহুব্রীহি'],
+  s3: ['নঞ তৎপুরুষ vs নঞ বহুব্রীহি', 'উপপদ তৎপুরুষ vs বহুব্রীহি সমাস', '৪র্থী তৎপুরুষ (নিমিত্ত) vs ৬ষ্ঠী তৎপুরুষ (সম্বন্ধ)'],
+  s4: ['দ্বিগু সমাস vs সংখ্যাবাচক বহুব্রীহি', 'সমানাধিকরণ vs ব্যাধিকরণ বহুব্রীহি', 'ব্যতিহার বহুব্রীহি vs দ্বন্দ্ব সমাস'],
+  s5: ['অব্যয়ীভাব সমাস vs প্রাদি সমাস', 'নিত্য সমাস vs একশেষ দ্বন্দ্ব', 'দ্বিগু সমাস vs সংখ্যাবাচক বহুব্রীহি'],
+  b1: ['আকাঙ্ক্ষা vs আসত্তি vs যোগ্যতা ট্র্যাপ', 'গুরুচণ্ডালী দোষ vs বাহুল্য দোষ', 'রীতিসিদ্ধ অর্থবাচকতা ও উপমার ভুল প্রয়োগ'],
+  b2: ['অসমাপিকা ক্রিয়াযুক্ত সরল বাক্য vs জটিল বাক্য', 'বিশেষ্য vs বিশেষণ vs ক্রিয়া-বিশেষণ স্থানীয় খণ্ডবাক্য', 'জটিল বাক্য vs যৌগিক বাক্য চেনার কৌশল'],
+  b3: ['অনুজ্ঞাসূচক vs ইচ্ছা/প্রার্থনাসূচক বাক্য', 'নেতিবাচক বিবৃতি vs নিষেধসূচক অনুজ্ঞা', 'সন্দেহবাচক vs কার্যকারণাত্মক/শর্তসাপেক্ষ বাক্য'],
+  b4: ['কর্মবাচ্য vs ভাববাচ্য vs কর্মকর্তৃবাচ্য', 'অর্থ অক্ষুণ্ণ রেখে অস্তিবাচক ↔ নেতিবাচক রূপান্তর', 'সরল ↔ জটিল ↔ যৌগিক বাক্য রূপান্তর ট্র্যাপ'],
+  p1: ['সংজ্ঞাবাচক vs জাতিবাচক বিশেষ্য', 'ভাববাচক বিশেষ্য vs গুণবাচক বিশেষ্য', 'সমষ্টিবাচক vs জাতিবাচক বিশেষ্য'],
+  p2: ['ক্রিয়া বিশেষণ vs বিশেষণের বিশেষণ', 'নাম বিশেষণ vs বিধেয় বিশেষণ', 'বিশেষণের অতিশায়ন (তর/তম vs ঈয়স্/ইষ্ঠ)'],
+  p3: ['আত্মবাচক সর্বনাম vs ব্যতিহারিক সর্বনাম', 'সাকল্যবাচক vs অনির্দিষ্টতাজ্ঞাপক সর্বনাম', 'সামীপ্যবাচক vs দূরত্ববাচক ও সংযোগজ্ঞাপক সর্বনাম'],
+  p4: ['সংযোজক vs বিয়োজক vs সংকোচক সমুচ্চয়ী অব্যয়', 'অনুসর্গ অব্যয় vs বিভক্তি চেনার উপায়', 'অনন্বয়ী অব্যয় vs অব্যয়-বিশেষণ'],
+  p5: ['যৌগিক ক্রিয়া vs মিশ্র ক্রিয়া', 'মুখ্য কর্ম vs গৌণ কর্ম vs সমধাতুজ কর্ম', 'প্রযোজক ক্রিয়া vs নামধাতুর ক্রিয়া']
+};
+
+const POPULAR_CONFUSIONS = [
+  'উপমান vs উপমিত vs রূপক কর্মধারয়',
+  'নঞ তৎপুরুষ vs নঞ বহুব্রীহি',
+  'দ্বিগু vs সংখ্যাবাচক বহুব্রীহি',
+  'যৌগিক ক্রিয়া vs মিশ্র ক্রিয়া',
+  'অলুক দ্বন্দ্ব vs অলুক তৎপুরুষ vs অলুক বহুব্রীহি',
+  'কর্মবাচ্য vs ভাববাচ্য vs কর্মকর্তৃবাচ্য',
+  'অসমাপিকা ক্রিয়াযুক্ত সরল vs জটিল বাক্য',
+  'আত্মবাচক vs ব্যতিহারিক সর্বনাম'
+];
+
+// Build flat index of built-in lessons & MCQs
+const BUILTIN_LESSONS = [];
+const BUILTIN_MCQS = [];
 MODULES.forEach((mod) => {
-  mod.lessons.forEach((les, lIdx) => {
+  mod.lessons.forEach((les) => {
     les.moduleId = mod.id;
     les.moduleTitle = mod.title;
     les.moduleColor = mod.color;
-    les.globalIndex = ALL_LESSONS.length;
+    les.globalIndex = BUILTIN_LESSONS.length;
     les.mcqs.forEach((m, qIdx) => {
       m.id = `${les.id}_q${qIdx + 1}`;
       m.lessonId = les.id;
       m.lessonTitle = les.title;
       m.moduleId = mod.id;
       m.moduleTitle = mod.title;
-      ALL_MCQS.push(m);
+      BUILTIN_MCQS.push(m);
+    });
+    BUILTIN_LESSONS.push(les);
+  });
+});
+
+let ALL_LESSONS = [...BUILTIN_LESSONS];
+let ALL_MCQS = [...BUILTIN_MCQS];
+
+function rebuildDynamicIndex() {
+  ALL_LESSONS = [...BUILTIN_LESSONS];
+  ALL_MCQS = [...BUILTIN_MCQS];
+  const customs = Array.isArray(state?.customLessons) ? state.customLessons : [];
+  customs.forEach((cl, idx) => {
+    const les = {
+      ...cl,
+      isCustom: true,
+      code: `AI-${toBnNum(idx + 1)}`,
+      moduleTitle: 'AI কনফিউশন ল্যাব',
+      moduleColor: 'amber',
+      globalIndex: ALL_LESSONS.length
+    };
+    les.mcqs = (cl.mcqs || []).map((m, qIdx) => {
+      const item = {
+        ...m,
+        id: m.id || `${cl.id}_q${qIdx + 1}`,
+        lessonId: cl.id,
+        lessonTitle: cl.title,
+        moduleId: cl.moduleId || 'custom',
+        moduleTitle: 'AI কনফিউশন ল্যাব'
+      };
+      ALL_MCQS.push(item);
+      return item;
     });
     ALL_LESSONS.push(les);
   });
-});
+}
 
 // ============================================================================
 // APP STATE & PERSISTENCE (Sandbox-safe localStorage)
@@ -1128,6 +1191,7 @@ const DEFAULT_STATE = {
   completedLessons: {},  // { s1: { bestAcc: 91, attempts: 1 } }
   mistakes: [],          // array of mcq IDs
   bookmarks: [],         // array of mcq IDs
+  customLessons: [],     // AI-generated confusion lessons synced via Cloudflare KV
   reviewSubTab: 'mistakes',
   notesSearch: '',
   // Mock exam config & session
@@ -1141,6 +1205,7 @@ const DEFAULT_STATE = {
 };
 
 let state = loadState();
+rebuildDynamicIndex();
 
 function loadState() {
   try {
@@ -1191,6 +1256,7 @@ function getSyncPayload() {
     completedLessons: state.completedLessons,
     mistakes: state.mistakes,
     bookmarks: state.bookmarks,
+    customLessons: state.customLessons || [],
     updatedAt: state.updatedAt || Date.now()
   };
 }
@@ -1289,7 +1355,9 @@ async function pullFromCloud(showNotification = false) {
         state.completedLessons = rs.completedLessons && typeof rs.completedLessons === 'object' ? rs.completedLessons : state.completedLessons;
         state.mistakes = Array.isArray(rs.mistakes) ? rs.mistakes : state.mistakes;
         state.bookmarks = Array.isArray(rs.bookmarks) ? rs.bookmarks : state.bookmarks;
+        state.customLessons = Array.isArray(rs.customLessons) ? rs.customLessons : (state.customLessons || []);
         state.updatedAt = remoteTs;
+        rebuildDynamicIndex();
         saveLocalOnly();
         renderApp();
         if (showNotification) showToast('ক্লাউড থেকে সর্বশেষ অগ্রগতি লোড হয়েছে!');
@@ -1429,6 +1497,12 @@ function renderLearnView() {
           </div>
           <h1 class="text-xl sm:text-2xl font-bold tracking-tight">ঢাবি খ-ইউনিট (DU B) বাংলা ব্যাকরণ কোর্স</h1>
           <p class="text-slate-300 text-sm mt-1">সমাস, বাক্য প্রকরণ ও পদ প্রকরণ — প্রতিটি লেসনে সহজ নিয়ম, শর্টকাট ও ২৫–২৬টি ভর্তি পরীক্ষার MCQ।</p>
+          <div class="mt-3 flex flex-wrap gap-2">
+            <button id="btn-open-ai-gen" class="btn-3d inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-400 to-orange-400 hover:from-amber-300 hover:to-orange-300 text-slate-950 font-extrabold text-xs sm:text-sm shadow-md">
+              <i data-lucide="sparkles" class="w-4 h-4"></i>
+              কনফিউশন থেকে AI লেসন তৈরি করুন
+            </button>
+          </div>
         </div>
         <div class="sm:w-56 bg-white/10 backdrop-blur rounded-xl p-3.5 border border-white/10">
           <div class="flex items-center justify-between text-xs font-semibold mb-1.5">
@@ -1470,6 +1544,55 @@ function renderLearnView() {
         কীবোর্ড শর্টকাট: ১–৪ অপশন, Enter পরবর্তী
       </div>
     </div>
+
+    <!-- AI Custom Confusion Lessons Section -->
+    ${(state.customLessons && state.customLessons.length > 0) ? `
+      <section class="bg-white dark:bg-slate-900 border-2 border-amber-300/80 dark:border-amber-700/60 rounded-2xl overflow-hidden shadow-sm mb-6">
+        <div class="bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 px-5 py-3.5 flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center gap-2.5">
+            <div class="w-9 h-9 rounded-xl bg-black/15 flex items-center justify-center shrink-0">
+              <i data-lucide="sparkles" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <div class="text-[11px] font-bold uppercase tracking-wider opacity-80">Gemini 3.8 Flash • ক্লাউড সিঙ্কড</div>
+              <h2 class="text-base sm:text-lg font-extrabold">আমার AI কনফিউশন লেসন (${toBnNum(state.customLessons.length)})</h2>
+            </div>
+          </div>
+          <button class="btn-open-ai-inline px-3 py-1.5 rounded-xl bg-slate-950 text-white text-xs font-bold hover:bg-slate-800 transition">
+            + নতুন AI লেসন
+          </button>
+        </div>
+        <div class="p-4 sm:p-5 space-y-3">
+          ${ALL_LESSONS.filter((l) => l.isCustom).map((les) => {
+            const done = state.completedLessons[les.id];
+            return `
+              <div class="rounded-xl border border-amber-200/80 dark:border-amber-900/50 bg-amber-50/40 dark:bg-amber-950/15 p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="flex flex-wrap items-center gap-1.5 mb-1">
+                    <span class="text-[11px] font-bold px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200">✨ ${les.code}</span>
+                    <span class="text-[11px] font-medium text-slate-500 dark:text-slate-400">${toBnNum(les.cards.length)}টি নোট • ${toBnNum(les.mcqs.length)}টি MCQ</span>
+                    ${done ? `<span class="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/40 px-2 py-0.5 rounded-md">সর্বোচ্চ: ${toBnNum(done.bestAcc)}%</span>` : ''}
+                  </div>
+                  <h3 class="font-bold text-slate-900 dark:text-white text-sm sm:text-base">${les.title}</h3>
+                  <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">${les.subtitle}</p>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                  <button data-start-lesson="${les.id}" data-mode="full" class="btn-start-lesson btn-3d px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold bg-amber-500 hover:bg-amber-600 text-slate-950 flex items-center gap-1.5 shadow-sm">
+                    <i data-lucide="play" class="w-3.5 h-3.5 fill-current"></i> শিখুন + MCQ
+                  </button>
+                  <button data-start-lesson="${les.id}" data-mode="quiz" class="btn-start-lesson px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800">
+                    শুধু MCQ
+                  </button>
+                  <button data-del-custom="${les.id}" title="লেসন মুছুন" class="btn-del-custom p-2 rounded-xl text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                  </button>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </section>
+    ` : ''}
 
     <!-- Modules & SoloLearn Path -->
     <div class="space-y-8">
@@ -1864,9 +1987,16 @@ function renderReviewView() {
         </div>
 
         ${activeList.length > 0 ? `
-          <button id="btn-practice-review" class="btn-3d px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold shadow-sm">
-            এগুলো কুইজ হিসেবে প্র্যাকটিস করুন →
-          </button>
+          <div class="flex flex-wrap gap-2">
+            ${state.reviewSubTab === 'mistakes' ? `
+              <button id="btn-ai-from-mistakes" class="btn-3d px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 text-xs sm:text-sm font-extrabold shadow-sm flex items-center gap-1.5">
+                <i data-lucide="sparkles" class="w-4 h-4"></i> ভুলগুলো থেকে AI লেসন
+              </button>
+            ` : ''}
+            <button id="btn-practice-review" class="btn-3d px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold shadow-sm">
+              এগুলো কুইজ হিসেবে প্র্যাকটিস করুন →
+            </button>
+          </div>
         ` : ''}
       </div>
 
@@ -2087,8 +2217,9 @@ function renderPlayerStep() {
     counterEl.textContent = 'সম্পন্ন!';
     barEl.style.width = '100%';
     const acc = player.mcqTotal > 0 ? Math.round((player.correctCount / player.mcqTotal) * 100) : 100;
-    const nextLes = player.lessonId
-      ? ALL_LESSONS.find((l) => l.globalIndex === ALL_LESSONS.find((x) => x.id === player.lessonId).globalIndex + 1)
+    const curObj = player.lessonId ? ALL_LESSONS.find((x) => x.id === player.lessonId) : null;
+    const nextLes = curObj && !curObj.isCustom
+      ? BUILTIN_LESSONS.find((l) => l.globalIndex === curObj.globalIndex + 1)
       : null;
 
     bodyEl.innerHTML = `
@@ -2120,7 +2251,7 @@ function renderPlayerStep() {
           </div>
         ` : ''}
 
-        <div class="flex flex-col sm:flex-row gap-2.5 justify-center">
+        <div class="flex flex-col sm:flex-row gap-2.5 justify-center mb-6">
           ${player.sessionMistakes.length > 0 ? `
             <button id="btn-retry-mistakes" class="btn-3d px-5 py-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm">
               ভুলগুলো এখনই রিভিউ করুন
@@ -2135,6 +2266,41 @@ function renderPlayerStep() {
             পাথে ফিরুন
           </button>
         </div>
+
+        <!-- Post-Lesson Probable Confusion Suggestions (AI Lesson Generator) -->
+        ${(() => {
+          const curLes = player.lessonId ? ALL_LESSONS.find((x) => x.id === player.lessonId) : null;
+          const sugList = (curLes && Array.isArray(curLes.nextSuggestions) && curLes.nextSuggestions.length > 0)
+            ? curLes.nextSuggestions
+            : (LESSON_CONFUSIONS[player.lessonId] || POPULAR_CONFUSIONS.slice(0, 3));
+          const modHint = curLes ? (curLes.moduleId || 'auto') : 'auto';
+          return `
+            <div class="text-left rounded-2xl border border-amber-300/80 dark:border-amber-800/70 bg-gradient-to-br from-amber-50 to-orange-50/70 dark:from-amber-950/30 dark:to-orange-950/20 p-4 sm:p-5">
+              <div class="flex items-center justify-between gap-2 mb-2">
+                <div class="text-xs sm:text-sm font-extrabold text-amber-900 dark:text-amber-300 flex items-center gap-1.5">
+                  ✨ সম্ভাব্য কনফিউশন দূর করুন (AI লেসন সাজেশন)
+                </div>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-200/80 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200">Gemini 3.8 Flash</span>
+              </div>
+              <p class="text-xs text-slate-600 dark:text-slate-400 mb-3">এই লেসনের পর নিচের যেকোনো কনফিউশনে ট্যাপ করলেই AI নতুন নোট ও প্রয়োজনীয় MCQ-সহ লেসন তৈরি করে দেবে:</p>
+              <div class="flex flex-wrap gap-2">
+                ${sugList.map((s) => `
+                  <button data-ai-suggest="${s.replace(/"/g, '&quot;')}" data-ai-mod="${modHint}" class="btn-post-ai-suggest text-left px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 hover:border-amber-500 hover:bg-amber-100/60 dark:hover:bg-amber-900/40 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 transition shadow-sm">
+                    ✨ ${s} →
+                  </button>
+                `).join('')}
+                ${player.sessionMistakes.length > 0 ? `
+                  <button id="btn-post-ai-mistakes" data-ai-mod="${modHint}" class="text-left px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs sm:text-sm font-bold transition shadow-sm">
+                    🎯 আমার ভুল ${toBnNum(player.sessionMistakes.length)}টি প্রশ্ন থেকে AI লেসন →
+                  </button>
+                ` : ''}
+                <button id="btn-post-ai-custom" data-ai-mod="${modHint}" class="text-left px-3 py-2 rounded-xl bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 text-white text-xs sm:text-sm font-bold transition">
+                  + নিজের কনফিউশন লিখুন
+                </button>
+              </div>
+            </div>
+          `;
+        })()}
       </div>
     `;
     footerEl.innerHTML = '';
@@ -2146,6 +2312,31 @@ function renderPlayerStep() {
     });
     document.getElementById('btn-retry-mistakes')?.addEventListener('click', () => {
       startCustomQuizPlayer('ভুল উত্তর রিভিউ', player.sessionMistakes, 'mistakes');
+    });
+    document.querySelectorAll('.btn-post-ai-suggest').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const topic = btn.dataset.aiSuggest;
+        const mod = btn.dataset.aiMod || 'auto';
+        closePlayerOverlay();
+        openAiLessonModal({ prefill: topic, moduleHint: mod, autoStart: true });
+      });
+    });
+    document.getElementById('btn-post-ai-mistakes')?.addEventListener('click', (e) => {
+      const mod = e.currentTarget.dataset.aiMod || 'auto';
+      const qs = player.sessionMistakes.map((m) => m.q);
+      const title = player.title;
+      closePlayerOverlay();
+      openAiLessonModal({
+        prefill: `${title} — আমার ভুল করা প্রশ্নগুলোর কনফিউশন সমাধান`,
+        moduleHint: mod,
+        sampleMistakes: qs,
+        autoStart: true
+      });
+    });
+    document.getElementById('btn-post-ai-custom')?.addEventListener('click', (e) => {
+      const mod = e.currentTarget.dataset.aiMod || 'auto';
+      closePlayerOverlay();
+      openAiLessonModal({ prefill: '', moduleHint: mod, autoStart: false });
     });
     return;
   }
@@ -2469,6 +2660,158 @@ function finishMockExam() {
 // ============================================================================
 // HEARTS & SETTINGS MODAL
 // ============================================================================
+let aiGenBusy = false;
+
+function openAiLessonModal({ prefill = '', moduleHint = 'auto', sampleMistakes = [], autoStart = false } = {}) {
+  const backdrop = document.getElementById('modal-backdrop');
+  const content = document.getElementById('modal-content');
+  backdrop.classList.remove('hidden');
+
+  content.innerHTML = `
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="text-base sm:text-lg font-extrabold flex items-center gap-2">
+        <span class="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 text-slate-950 flex items-center justify-center text-sm">✨</span>
+        AI কনফিউশন লেসন জেনারেটর
+      </h3>
+      <button id="btn-close-ai-modal" class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+    </div>
+
+    <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">
+      যেকোনো বাংলা ব্যাকরণের কনফিউশন লিখুন — <strong>Gemini 3.8 Flash (Medium)</strong> তুলনামূলক নোট কার্ড ও প্রয়োজন অনুযায়ী পর্যাপ্ত DU B-Unit MCQ তৈরি করে আপনার কোর্সে যুক্ত করবে।
+    </p>
+
+    <div class="space-y-3">
+      <div>
+        <label class="block text-xs font-bold mb-1">আপনার কনফিউশন বা টপিক:</label>
+        <textarea id="input-ai-confusion" rows="2" placeholder="যেমন: উপমান vs উপমিত কর্মধারয়, অথবা যৌগিক vs মিশ্র ক্রিয়া..." class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">${prefill}</textarea>
+      </div>
+
+      ${sampleMistakes.length > 0 ? `
+        <div class="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/60 text-xs text-rose-700 dark:text-rose-300">
+          🎯 আপনার <strong>${toBnNum(sampleMistakes.length)}টি ভুল প্রশ্ন</strong> কনটেক্সট হিসেবে যুক্ত করা হয়েছে।
+        </div>
+      ` : `
+        <div>
+          <div class="text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1.5">জনপ্রিয় DU B-Unit কনফিউশন (ট্যাপ করুন):</div>
+          <div class="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
+            ${POPULAR_CONFUSIONS.map((c) => `
+              <button data-chip-conf="${c.replace(/"/g, '&quot;')}" class="btn-ai-chip text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-amber-100 dark:hover:bg-amber-900/50 text-slate-700 dark:text-slate-200 transition">${c}</button>
+            `).join('')}
+          </div>
+        </div>
+      `}
+
+      <div id="ai-gen-status" class="hidden p-3.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 text-xs sm:text-sm text-blue-800 dark:text-blue-200"></div>
+
+      <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+        <button id="btn-cancel-ai" class="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-xs sm:text-sm font-semibold hover:bg-slate-100 dark:hover:bg-slate-800">বাতিল</button>
+        <button id="btn-submit-ai" class="btn-3d px-5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 text-xs sm:text-sm font-extrabold shadow-sm">
+          ✨ লেসন তৈরি করুন
+        </button>
+      </div>
+    </div>
+  `;
+
+  if (window.lucide) lucide.createIcons();
+
+  const close = () => {
+    if (aiGenBusy) return;
+    backdrop.classList.add('hidden');
+  };
+  document.getElementById('btn-close-ai-modal')?.addEventListener('click', close);
+  document.getElementById('btn-cancel-ai')?.addEventListener('click', close);
+
+  document.querySelectorAll('.btn-ai-chip').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const ta = document.getElementById('input-ai-confusion');
+      if (ta) ta.value = btn.dataset.chipConf;
+    });
+  });
+
+  const trigger = () => {
+    const val = (document.getElementById('input-ai-confusion')?.value || '').trim();
+    if (!val && sampleMistakes.length === 0) {
+      showToast('অনুগ্রহ করে একটি কনফিউশন বা টপিক লিখুন');
+      return;
+    }
+    runAiLessonGeneration(val, moduleHint, sampleMistakes);
+  };
+
+  document.getElementById('btn-submit-ai')?.addEventListener('click', trigger);
+
+  if (autoStart && (prefill || sampleMistakes.length > 0)) {
+    trigger();
+  }
+}
+
+async function runAiLessonGeneration(confusion, moduleHint, sampleMistakes) {
+  if (aiGenBusy) return;
+  aiGenBusy = true;
+
+  const statusEl = document.getElementById('ai-gen-status');
+  const submitBtn = document.getElementById('btn-submit-ai');
+  const cancelBtn = document.getElementById('btn-cancel-ai');
+
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'তৈরি হচ্ছে...';
+  }
+  if (cancelBtn) cancelBtn.disabled = true;
+
+  if (statusEl) {
+    statusEl.className = 'p-3.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 text-xs sm:text-sm text-blue-800 dark:text-blue-200 flex items-center gap-2.5';
+    statusEl.innerHTML = `<span class="inline-block w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin shrink-0"></span><span><strong>Gemini 3.8 Flash (Medium)</strong> আপনার কনফিউশন বিশ্লেষণ করে নোট কার্ড ও পর্যাপ্ত MCQ তৈরি করছে... (১৫–৩০ সেকেন্ড লাগতে পারে)</span>`;
+  }
+
+  try {
+    const resp = await fetch(AI_LESSON_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ confusion, moduleHint, sampleMistakes })
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.ok || !data.lesson) {
+      throw new Error(data.error || 'লেসন তৈরি করা যায়নি');
+    }
+
+    const newId = 'ai_' + Date.now().toString(36);
+    const created = {
+      id: newId,
+      title: data.lesson.title,
+      subtitle: data.lesson.subtitle,
+      moduleId: data.lesson.moduleId || 'custom',
+      cards: data.lesson.cards || [],
+      mcqs: (data.lesson.mcqs || []).map((m, i) => ({ ...m, id: `${newId}_q${i + 1}` })),
+      nextSuggestions: data.lesson.nextSuggestions || [],
+      createdAt: Date.now(),
+      model: data.model || 'gemini-3.8-flash'
+    };
+
+    state.customLessons = [created, ...(state.customLessons || [])];
+    rebuildDynamicIndex();
+    saveState();
+
+    aiGenBusy = false;
+    document.getElementById('modal-backdrop').classList.add('hidden');
+    showToast(`নতুন AI লেসন তৈরি হয়েছে (${toBnNum(created.mcqs.length)}টি MCQ)!`);
+    renderApp();
+    startLessonPlayer(newId, 'full');
+  } catch (err) {
+    aiGenBusy = false;
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = '↻ পুনরায় চেষ্টা করুন';
+    }
+    if (cancelBtn) cancelBtn.disabled = false;
+    if (statusEl) {
+      statusEl.className = 'p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 text-xs sm:text-sm text-rose-700 dark:text-rose-300';
+      statusEl.textContent = '⚠️ ' + (err.message || 'সার্ভারে সংযোগ করা যায়নি। আবার চেষ্টা করুন।');
+    }
+  }
+}
+
 function openHeartsModal() {
   const backdrop = document.getElementById('modal-backdrop');
   const content = document.getElementById('modal-content');
@@ -2633,6 +2976,40 @@ function attachMainListeners() {
     startLessonPlayer(next.id, 'full');
   });
 
+  document.getElementById('btn-open-ai-gen')?.addEventListener('click', () => {
+    openAiLessonModal({ moduleHint: state.moduleFilter === 'all' ? 'auto' : state.moduleFilter });
+  });
+
+  document.querySelectorAll('.btn-open-ai-inline').forEach((btn) => {
+    btn.addEventListener('click', () => openAiLessonModal({ moduleHint: 'auto' }));
+  });
+
+  document.querySelectorAll('.btn-del-custom').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.delCustom;
+      state.customLessons = (state.customLessons || []).filter((c) => c.id !== id);
+      delete state.completedLessons[id];
+      rebuildDynamicIndex();
+      saveState();
+      showToast('AI লেসনটি মুছে ফেলা হয়েছে');
+      renderApp();
+    });
+  });
+
+  document.getElementById('btn-ai-from-mistakes')?.addEventListener('click', () => {
+    const missedQs = state.mistakes
+      .map((id) => ALL_MCQS.find((q) => q.id === id))
+      .filter(Boolean)
+      .slice(0, 10)
+      .map((q) => q.q);
+    openAiLessonModal({
+      prefill: 'আমার ভুল উত্তরগুলো বিশ্লেষণ করে মূল কনফিউশন সমাধান',
+      moduleHint: 'auto',
+      sampleMistakes: missedQs,
+      autoStart: false
+    });
+  });
+
   // Mock View listeners
   document.querySelectorAll('.mock-mod-toggle').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -2793,7 +3170,7 @@ document.getElementById('btn-player-close').addEventListener('click', closePlaye
 window.addEventListener('online', () => { pullFromCloud(false); });
 
 document.getElementById('modal-backdrop').addEventListener('click', (e) => {
-  if (e.target.id === 'modal-backdrop') {
+  if (e.target.id === 'modal-backdrop' && !aiGenBusy) {
     e.currentTarget.classList.add('hidden');
   }
 });
