@@ -151,7 +151,7 @@ tailwind.config = {
   <div id="playerFooter" class="glass border-t px-3 sm:px-6 py-3 shrink-0"></div>
 
   <!-- FLOATING LESSON AI CHAT FAB & WINDOW -->
-  <button id="btnLessonAiFab" class="fixed bottom-20 right-4 sm:right-6 z-[55] px-3.5 py-2.5 rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-xs sm:text-sm font-bold shadow-2xl flex items-center gap-1.5 border border-indigo-400/40 transition">
+  <button id="btnLessonAiFab" class="hidden fixed bottom-20 right-4 sm:right-6 z-[55] px-3.5 py-2.5 rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-xs sm:text-sm font-bold shadow-2xl flex items-center gap-1.5 border border-indigo-400/40 transition">
     <span>✨</span><span>AI সাহায্য</span>
     <span id="lessonAiBadge" class="hidden px-1.5 py-0.5 text-[10px] rounded-full bg-emerald-500 text-white font-bold">0</span>
   </button>
@@ -236,7 +236,8 @@ const DEFAULT_STATE = {
   lessonProgress: {},     // { "lessonId:mode": { idx, queue, firstAttemptCorrect, firstAttemptTotal, seenBaseIds, missedBaseIds, answeredCurrent } }
   customLessons: [],      // AI generated lessons
   chatHistory: [],        // [{ role, content, lessonId?, suggestedPrompts? }]
-  lessonChats: {},        // { [lessonId]: [{ role, content, stepLabel, ts }] }
+  lessonChats: {},        // legacy
+  cardChats: {},          // { [cardId]: [{ role, content, ts }] }
   srsCorrectStreak: 0,    // earns +1 heart every 2 correct answers
   updatedAt: 0
 };
@@ -605,8 +606,11 @@ function renderLearnTab() {
                     <span>📝 ${lesson.mcqs.length} MCQ</span>
                     <span>✍️ ${(lesson.writtenDrills||[]).length} লিখিত</span>
                     ${(() => {
-                      const lchats = (state.lessonChats && state.lessonChats[lesson.id]) || [];
-                      const aiReplies = lchats.filter(m => m.role === "assistant").length;
+                      let aiReplies = 0;
+                      for (const c of (lesson.cards || [])) {
+                        const arr = (state.cardChats && state.cardChats[c.id]) || [];
+                        aiReplies += arr.filter(m => m.role === "assistant").length;
+                      }
                       if (!aiReplies) return '';
                       return `<button data-open-lnotes="${lesson.id}" class="open-lnotes-btn px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/35 hover:bg-indigo-500/30 font-bold">✨ AI নোটস (${aiReplies})</button>`;
                     })()}
@@ -971,41 +975,20 @@ function startCustomMcqSession(title, mcqIds, kind = "review") {
 
 let lessonAiBusy = false;
 
-function getCurrentChatLessonId() {
-  if (!session) return null;
-  if (session.lessonId) return session.lessonId;
-  const step = session.queue && session.queue[session.idx];
-  if (step && step.mcq && step.mcq.lessonId) return step.mcq.lessonId;
-  if (step && step.card && step.card.lessonId) return step.card.lessonId;
-  return session.moduleId || "general";
+function getCurrentCardStep() {
+  if (!session || !session.queue) return null;
+  const step = session.queue[session.idx];
+  return (step && step.type === "card" && step.card) ? step : null;
 }
 
-function getCurrentStepContext() {
-  if (!session) return { label: "", snippet: "" };
-  const step = session.queue && session.queue[session.idx];
-  if (!step) return { label: "সারাংশ", snippet: session.title || "" };
-  if (step.type === "card" && step.card) {
-    const f = (step.card.formulas || []).map(x => x.label + ": " + x.latex).join(" | ");
-    return {
-      label: step.chunkNum ? `মাইক্রো-কার্ড ${step.chunkNum}: ${step.card.title}` : step.card.title,
-      snippet: `Card: ${step.card.title}. Intuition: ${step.card.intuition}. Formulas: ${f}. Tip: ${step.card.tip}`
-    };
-  }
-  if (step.type === "mcq" && step.mcq) {
-    return {
-      label: `প্রশ্ন ${session.idx + 1}`,
-      snippet: `MCQ: ${step.mcq.q} | Options: ${(step.mcq.opts || []).join(" ; ")} | Explanation: ${step.mcq.exp || ""}`
-    };
-  }
-  if (step.type === "myth" && step.myth) {
-    return { label: "সত্য/মিথ্যা যাচাই", snippet: `Statement: ${step.myth.statement}` };
-  }
-  return { label: session.title || "", snippet: "" };
+function getCurrentCardId() {
+  const step = getCurrentCardStep();
+  return step ? step.card.id : null;
 }
 
 function updateLessonAiBadge() {
-  const lid = getCurrentChatLessonId();
-  const list = (lid && state.lessonChats && state.lessonChats[lid]) || [];
+  const cid = getCurrentCardId();
+  const list = (cid && state.cardChats && state.cardChats[cid]) || [];
   const cnt = list.filter(m => m.role === "assistant").length;
   const badge = document.getElementById("lessonAiBadge");
   if (!badge) return;
@@ -1017,22 +1000,69 @@ function updateLessonAiBadge() {
   }
 }
 
-function renderLessonAiDrawer() {
-  const lid = getCurrentChatLessonId();
-  const lessonObj = LESSON_MAP[lid];
-  const sub = document.getElementById("lessonAiSubtitle");
-  if (sub) sub.textContent = lessonObj ? `${lessonObj.title} — উত্তরগুলো এই লেসনে সেভ থাকবে` : "উত্তরগুলো এই লেসনে সেভ থাকবে";
+function renderCardSavedAiNotes(cardId) {
+  const wrap = document.getElementById("cardSavedAiWrap");
+  if (!wrap) return;
+  const list = (state.cardChats && state.cardChats[cardId]) || [];
+  const pairs = [];
+  for (let i = 0; i < list.length; i++) {
+    if (list[i].role === "assistant") {
+      const prevQ = (i > 0 && list[i - 1].role === "user") ? list[i - 1].content : "";
+      pairs.push({ idx: i, q: prevQ, a: list[i].content });
+    }
+  }
+  if (!pairs.length) {
+    wrap.innerHTML = "";
+    return;
+  }
+  wrap.innerHTML = `
+    <div class="p-3.5 sm:p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/35 space-y-2.5">
+      <div class="text-xs font-bold text-indigo-300">✨ এই কার্ডে সেভ করা AI ব্যাখ্যা (${pairs.length})</div>
+      <div class="space-y-2">
+        ${pairs.map(p => `
+          <div class="p-3 rounded-xl glass-2 space-y-1.5">
+            <div class="flex items-start justify-between gap-2">
+              ${p.q ? `<div class="text-[11px] font-bold text-indigo-300">🙋 ${escHtml(p.q)}</div>` : '<div></div>'}
+              <button data-del-cnote="${cardId}:${p.idx}" class="del-cnote-btn text-[10px] text-rose-400 hover:underline shrink-0">মুছুন</button>
+            </div>
+            <div class="text-xs sm:text-sm leading-relaxed whitespace-pre-wrap">${escHtml(p.a)}</div>
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `;
+  wrap.querySelectorAll(".del-cnote-btn").forEach(b => b.addEventListener("click", () => {
+    const [cid, iStr] = b.dataset.delCnote.split(":");
+    const idx = Number(iStr);
+    if (state.cardChats && state.cardChats[cid]) {
+      if (idx > 0 && state.cardChats[cid][idx - 1]?.role === "user") {
+        state.cardChats[cid].splice(idx - 1, 2);
+      } else {
+        state.cardChats[cid].splice(idx, 1);
+      }
+      saveState();
+      renderCardSavedAiNotes(cid);
+      renderLessonAiDrawer();
+    }
+  }));
+  renderMath(wrap);
+}
 
-  const list = (lid && state.lessonChats && state.lessonChats[lid]) || [];
+function renderLessonAiDrawer() {
+  const step = getCurrentCardStep();
+  const cid = step ? step.card.id : null;
+  const sub = document.getElementById("lessonAiSubtitle");
+  if (sub) sub.textContent = step ? `${step.card.title} — উত্তর এই কার্ডেই সেভ হবে` : "উত্তর এই কার্ডেই সেভ হবে";
+
+  const list = (cid && state.cardChats && state.cardChats[cid]) || [];
   const log = document.getElementById("lessonAiLog");
   if (!log) return;
   if (!list.length) {
-    log.innerHTML = `<div class="text-xs text-slate-400 text-center py-6 leading-relaxed">এই অধ্যায় বা বর্তমান প্রশ্ন নিয়ে যেকোনো প্রশ্ন করো।<br>AI-এর সব উত্তর স্বয়ংক্রিয়ভাবে এই লেসনের পেজে সেভ থাকবে।</div>`;
+    log.innerHTML = `<div class="text-xs text-slate-400 text-center py-6 leading-relaxed">এই কার্ডের যেকোনো সূত্র বা ধারণা নিয়ে প্রশ্ন করো।<br>AI-এর উত্তর স্বয়ংক্রিয়ভাবে এই কার্ডের ভেতরেই সেভ থাকবে।</div>`;
   } else {
     log.innerHTML = list.map(m => `
       <div class="flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}">
-        <div class="max-w-[90%] rounded-2xl px-3 py-2 text-xs sm:text-sm leading-relaxed space-y-1 ${m.role === 'user' ? 'bg-indigo-600 text-white' : 'glass-2'}">
-          ${m.stepLabel ? `<div class="text-[10px] opacity-75 font-semibold">${escHtml(m.stepLabel)}</div>` : ''}
+        <div class="max-w-[90%] rounded-2xl px-3 py-2 text-xs sm:text-sm leading-relaxed ${m.role === 'user' ? 'bg-indigo-600 text-white' : 'glass-2'}">
           <div class="whitespace-pre-wrap">${escHtml(m.content)}</div>
         </div>
       </div>
@@ -1044,26 +1074,26 @@ function renderLessonAiDrawer() {
 }
 
 async function sendLessonAiMessage(text) {
-  const lid = getCurrentChatLessonId();
-  if (!lid || !text || lessonAiBusy) return;
+  const step = getCurrentCardStep();
+  if (!step || !text || lessonAiBusy) return;
+  const card = step.card;
+  const cid = card.id;
   lessonAiBusy = true;
-  if (!state.lessonChats) state.lessonChats = {};
-  if (!state.lessonChats[lid]) state.lessonChats[lid] = [];
+  if (!state.cardChats) state.cardChats = {};
+  if (!state.cardChats[cid]) state.cardChats[cid] = [];
 
-  const ctx = getCurrentStepContext();
-  state.lessonChats[lid].push({ role: "user", content: text, stepLabel: ctx.label, ts: Date.now() });
+  state.cardChats[cid].push({ role: "user", content: text, ts: Date.now() });
   saveState();
   renderLessonAiDrawer();
 
   try {
-    const lessonObj = LESSON_MAP[lid];
-    const recentMsgs = state.lessonChats[lid].slice(-6).map(m => ({ role: m.role, content: m.content }));
-    // Prepend current card/MCQ context to the last user message sent to worker
+    const lessonObj = LESSON_MAP[session.lessonId];
+    const formulasTxt = (card.formulas || []).map(x => x.label + ": " + x.latex).join(" | ");
+    const cardSnippet = `Card: ${card.title}. Intuition: ${card.intuition}. Formulas: ${formulasTxt}. Tip: ${card.tip}`;
+    const recentMsgs = state.cardChats[cid].slice(-6).map(m => ({ role: m.role, content: m.content }));
     const apiMsgs = recentMsgs.slice(0, -1).concat([{
       role: "user",
-      content: `[Lesson: ${lessonObj ? lessonObj.title : lid} | Current Step: ${ctx.label}]
-Context: ${ctx.snippet}
-Student question: ${text}`
+      content: `[Lesson: ${lessonObj ? lessonObj.title : session.title} | Card: ${card.title}]\nContext: ${cardSnippet}\nStudent question: ${text}`
     }]);
 
     const r = await fetch(`${WORKER_URL}/ai/chat`, {
@@ -1072,55 +1102,71 @@ Student question: ${text}`
       body: JSON.stringify({
         messages: apiMsgs,
         forceLesson: false,
-        context: { xp: state.xp, currentLesson: lessonObj ? lessonObj.title : lid }
+        context: { xp: state.xp, currentLesson: lessonObj ? lessonObj.title : session.title }
       })
     });
     const d = await r.json();
     if (!d.ok) throw new Error(d.error || "AI উত্তর দিতে পারেনি");
-    state.lessonChats[lid].push({
+    state.cardChats[cid].push({
       role: "assistant",
       content: d.reply || "সম্পন্ন!",
-      stepLabel: ctx.label,
       ts: Date.now()
     });
     saveState();
   } catch (e) {
-    state.lessonChats[lid].push({
+    state.cardChats[cid].push({
       role: "assistant",
       content: `দুঃখিত, এই মুহূর্তে উত্তর আনা যায়নি (${e.message})।`,
-      stepLabel: ctx.label,
       ts: Date.now()
     });
     saveState();
   }
   lessonAiBusy = false;
   renderLessonAiDrawer();
+  renderCardSavedAiNotes(cid);
 }
 
 function openLessonNotesModal(lessonId) {
   const lessonObj = LESSON_MAP[lessonId];
-  const list = (state.lessonChats && state.lessonChats[lessonId]) || [];
-  document.getElementById("lessonNotesTitle").textContent = `✨ AI নোটস — ${lessonObj ? lessonObj.title : lessonId}`;
+  document.getElementById("lessonNotesTitle").textContent = `✨ কার্ডভিত্তিক AI নোটস — ${lessonObj ? lessonObj.title : lessonId}`;
   const body = document.getElementById("lessonNotesBody");
-  if (!list.length) {
-    body.innerHTML = `<div class="text-sm text-slate-400 text-center py-8">এই অধ্যায়ের জন্য এখনো কোনো AI উত্তর সেভ করা হয়নি।</div>`;
+  const blocks = [];
+  for (const c of (lessonObj?.cards || [])) {
+    const arr = (state.cardChats && state.cardChats[c.id]) || [];
+    const replies = [];
+    for (let i = 0; i < arr.length; i++) {
+      if (arr[i].role === "assistant") {
+        const q = (i > 0 && arr[i - 1].role === "user") ? arr[i - 1].content : "";
+        replies.push({ idx: i, q, a: arr[i].content });
+      }
+    }
+    if (replies.length) blocks.push({ card: c, replies });
+  }
+  if (!blocks.length) {
+    body.innerHTML = `<div class="text-sm text-slate-400 text-center py-8">এই অধ্যায়ের কোনো কার্ডে এখনো AI উত্তর সেভ করা হয়নি।</div>`;
   } else {
-    body.innerHTML = list.map((m, idx) => `
-      <div class="rounded-xl p-3.5 space-y-1.5 ${m.role === 'user' ? 'bg-indigo-600/20 border border-indigo-500/30' : 'glass-2 border border-emerald-500/25'}">
-        <div class="flex items-center justify-between gap-2 text-[11px] font-bold ${m.role === 'user' ? 'text-indigo-300' : 'text-emerald-400'}">
-          <span>${m.role === 'user' ? '🙋 তোমার প্রশ্ন' : '✨ AI টিউটরের ব্যাখ্যা'}${m.stepLabel ? ' • ' + escHtml(m.stepLabel) : ''}</span>
-          ${m.role === 'assistant' ? `<button data-del-lnote="${lessonId}:${idx}" class="del-lnote-btn text-[10px] text-rose-400 hover:underline">মুছুন</button>` : ''}
-        </div>
-        <div class="text-xs sm:text-sm leading-relaxed whitespace-pre-wrap">${escHtml(m.content)}</div>
+    body.innerHTML = blocks.map(b => `
+      <div class="glass-2 rounded-xl p-3.5 space-y-2.5 border border-indigo-500/30">
+        <div class="text-xs font-extrabold text-indigo-300">📘 ${escHtml(b.card.title)}</div>
+        ${b.replies.map(r => `
+          <div class="p-3 rounded-lg bg-slate-900/60 space-y-1.5">
+            <div class="flex items-start justify-between gap-2">
+              ${r.q ? `<div class="text-[11px] font-bold text-emerald-400">🙋 ${escHtml(r.q)}</div>` : '<div></div>'}
+              <button data-del-cnote="${b.card.id}:${r.idx}" class="del-modal-cnote text-[10px] text-rose-400 hover:underline shrink-0">মুছুন</button>
+            </div>
+            <div class="text-xs sm:text-sm leading-relaxed whitespace-pre-wrap">${escHtml(r.a)}</div>
+          </div>
+        `).join("")}
       </div>
     `).join("");
-    body.querySelectorAll(".del-lnote-btn").forEach(b => b.addEventListener("click", () => {
-      const [lid, iStr] = b.dataset.delLnote.split(":");
-      const i = Number(iStr);
-      if (state.lessonChats && state.lessonChats[lid]) {
-        state.lessonChats[lid].splice(i, 1);
+    body.querySelectorAll(".del-modal-cnote").forEach(btn => btn.addEventListener("click", () => {
+      const [cid, iStr] = btn.dataset.delCnote.split(":");
+      const idx = Number(iStr);
+      if (state.cardChats && state.cardChats[cid]) {
+        if (idx > 0 && state.cardChats[cid][idx - 1]?.role === "user") state.cardChats[cid].splice(idx - 1, 2);
+        else state.cardChats[cid].splice(idx, 1);
         saveState();
-        openLessonNotesModal(lid);
+        openLessonNotesModal(lessonId);
         renderLearnTab();
       }
     }));
@@ -1190,9 +1236,17 @@ function renderPlayerStep() {
     bossBadge.classList.add("hidden");
   }
 
-  if (step.type === "card") renderCardStep(step);
-  else if (step.type === "myth") renderMythStep(step);
-  else renderMcqStep(step);
+  const aiFab = document.getElementById("btnLessonAiFab");
+  if (step.type === "card") {
+    if (aiFab) aiFab.classList.remove("hidden");
+    updateLessonAiBadge();
+    renderCardStep(step);
+  } else {
+    if (aiFab) aiFab.classList.add("hidden");
+    closeLessonAiDrawer();
+    if (step.type === "myth") renderMythStep(step);
+    else renderMcqStep(step);
+  }
 }
 
 function renderCardStep(step) {
@@ -1271,6 +1325,8 @@ function renderCardStep(step) {
             <div id="checkAnswer" class="hidden mt-2 text-xs sm:text-sm text-emerald-300 font-medium">${escHtml(c.check.a)}</div>
           </div>
         ` : ''}
+
+        <div id="cardSavedAiWrap"></div>
       </div>
     </div>
   `;
@@ -1626,6 +1682,9 @@ function submitMcqAnswer(chosenIdx, timedOut) {
 
 function renderSessionSummary() {
   clearPlayerTimers();
+  const aiFab = document.getElementById("btnLessonAiFab");
+  if (aiFab) aiFab.classList.add("hidden");
+  closeLessonAiDrawer();
   document.getElementById("playerProgressBar").style.width = "100%";
   const acc = session.firstAttemptTotal ? Math.round((session.firstAttemptCorrect / session.firstAttemptTotal) * 100) : 100;
   const threshold = session.kind === "boss" ? 80 : 75;
@@ -2373,12 +2432,13 @@ document.getElementById("btnLessonAiFab").addEventListener("click", () => {
 });
 document.getElementById("btnCloseLessonAi").addEventListener("click", closeLessonAiDrawer);
 document.getElementById("btnClearLessonAi").addEventListener("click", () => {
-  const lid = getCurrentChatLessonId();
-  if (lid && state.lessonChats && state.lessonChats[lid]) {
-    state.lessonChats[lid] = [];
+  const cid = getCurrentCardId();
+  if (cid && state.cardChats && state.cardChats[cid]) {
+    state.cardChats[cid] = [];
     saveState();
     renderLessonAiDrawer();
-    showToast("এই লেসনের AI চ্যাট মুছে ফেলা হয়েছে");
+    renderCardSavedAiNotes(cid);
+    showToast("এই কার্ডের AI নোটস মুছে ফেলা হয়েছে");
   }
 });
 document.querySelectorAll(".lesson-ai-chip").forEach(b => b.addEventListener("click", () => {
