@@ -99,7 +99,7 @@ tailwind.config = {
     <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
       <button id="btnStrictToggle" class="px-2 py-1 rounded-full text-xs font-semibold flex items-center gap-1 border transition" title="স্ট্রিক্ট লার্নিং মোড"></button>
       <button id="btnHeartsPill" class="px-2 py-1 rounded-full text-xs font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30 flex items-center gap-1" title="হার্ট ও SRS রিভিশন">
-        <span>❤️</span><span id="hdrHearts">5/5</span>
+        <span>❤️</span><span id="hdrHearts">∞</span>
       </button>
       <div class="px-2 py-1 rounded-full text-xs font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30 hidden sm:flex items-center gap-1">
         <span>⚡</span><span id="hdrXp">0 XP</span>
@@ -143,7 +143,7 @@ tailwind.config = {
     <div class="flex items-center gap-2 shrink-0">
       <div id="bossTimerBadge" class="hidden px-2.5 py-1 rounded-full text-xs font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40 font-mono">45s</div>
       <div class="px-2 py-1 rounded-full text-xs font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30">
-        ❤️ <span id="playerHearts">5</span>
+        ❤️ <span id="playerHearts">∞</span>
       </div>
     </div>
   </div>
@@ -190,6 +190,7 @@ const DEFAULT_STATE = {
   mistakes: [],           // array of base mcqId
   bookmarks: [],          // array of base mcqId
   writtenDone: {},        // { drillId: true }
+  lessonProgress: {},     // { "lessonId:mode": { idx, queue, firstAttemptCorrect, firstAttemptTotal, seenBaseIds, missedBaseIds, answeredCurrent } }
   customLessons: [],      // AI generated lessons
   chatHistory: [],        // [{ role, content, lessonId?, suggestedPrompts? }]
   srsCorrectStreak: 0,    // earns +1 heart every 2 correct answers
@@ -382,7 +383,7 @@ function updateHeader() {
     stBtn.className = "px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1 border bg-slate-500/15 text-slate-400 border-slate-500/30";
     stBtn.textContent = "🔓 ফ্রি মোড";
   }
-  document.getElementById("hdrHearts").textContent = `${state.hearts}/${state.maxHearts}`;
+  document.getElementById("hdrHearts").textContent = "∞";
   document.getElementById("hdrXp").textContent = `${state.xp} XP`;
   updateSyncPill();
 }
@@ -561,12 +562,29 @@ function renderLearnTab() {
                     <span>✍️ ${(lesson.writtenDrills||[]).length} লিখিত</span>
                   </div>
                 </div>
+                ${(() => {
+                  const spFull = state.lessonProgress && state.lessonProgress[lesson.id + ':full'];
+                  const spQuiz = state.lessonProgress && state.lessonProgress[lesson.id + ':quiz'];
+                  const sp = spFull || spQuiz;
+                  if (!sp || !sp.queue || !sp.queue.length || sp.idx <= 0) return '';
+                  const pctStep = Math.min(99, Math.round((sp.idx / sp.queue.length) * 100));
+                  return `
+                    <div class="space-y-1">
+                      <div class="flex items-center justify-between text-[11px] text-amber-300 font-semibold">
+                        <span>📌 চলমান: ধাপ ${sp.idx + 1}/${sp.queue.length} (${pctStep}%)</span>
+                        <button data-reset-prog="${lesson.id}" class="reset-prog-btn text-[10px] text-slate-400 hover:text-rose-400 underline">রিসেট</button>
+                      </div>
+                      <div class="h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                        <div class="h-full bg-amber-400" style="width:${pctStep}%"></div>
+                      </div>
+                    </div>`;
+                })()}
                 <div class="flex items-center gap-2 pt-1">
                   <button data-play-lesson="${lesson.id}" data-mode="full" ${!unlocked ? 'disabled' : ''} class="play-btn flex-1 py-2 rounded-xl text-xs font-bold transition ${unlocked ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}">
-                    ${unlocked ? 'শেখা + MCQ' : 'আগের লেসন ≥৭৫% পাস করো'}
+                    ${!unlocked ? 'আগের লেসন ≥৭৫% পাস করো' : ((state.lessonProgress && state.lessonProgress[lesson.id + ':full'] && state.lessonProgress[lesson.id + ':full'].idx > 0) ? '▶️ চালিয়ে যাও (শেখা + MCQ)' : 'শেখা + MCQ')}
                   </button>
                   <button data-play-lesson="${lesson.id}" data-mode="quiz" ${!unlocked ? 'disabled' : ''} class="play-btn px-3 py-2 rounded-xl text-xs font-semibold transition ${unlocked ? 'glass-2 hover:bg-slate-700/60' : 'bg-slate-800/50 text-slate-600 cursor-not-allowed'}">
-                    কুইজ
+                    ${(state.lessonProgress && state.lessonProgress[lesson.id + ':quiz'] && state.lessonProgress[lesson.id + ':quiz'].idx > 0) ? '▶️ কুইজ' : 'কুইজ'}
                   </button>
                 </div>
               </div>
@@ -596,6 +614,16 @@ function renderLearnTab() {
   }));
   document.querySelectorAll(".play-btn").forEach(b => b.addEventListener("click", () => {
     startLessonSession(b.dataset.playLesson, b.dataset.mode);
+  }));
+  document.querySelectorAll(".reset-prog-btn").forEach(b => b.addEventListener("click", () => {
+    const lid = b.dataset.resetProg;
+    if (state.lessonProgress) {
+      delete state.lessonProgress[lid + ":full"];
+      delete state.lessonProgress[lid + ":quiz"];
+      saveState();
+      renderLearnTab();
+      showToast("লেসনের চলমান প্রগ্রেস রিসেট করা হয়েছে");
+    }
   }));
   document.querySelectorAll(".boss-btn").forEach(b => b.addEventListener("click", () => {
     startBossQuiz(b.dataset.bossMod);
@@ -641,14 +669,110 @@ function makeShuffledOptionOrder(mcq) {
   };
 }
 
+function serializeQueueStep(st) {
+  if (st.type === "card") {
+    return { t: "c", cid: st.card.id, r: st.isRedirect ? 1 : 0, cn: st.chunkNum || 0, ct: st.chunkTotal || 0 };
+  }
+  if (st.type === "myth") {
+    return { t: "m", cid: st.cardId || "" };
+  }
+  return {
+    t: "q",
+    bid: st.baseId,
+    qid: st.mcq.id || st.baseId,
+    vi: st.variantIdx != null ? st.variantIdx : -1,
+    sm: st.streakMiss || 0,
+    ir: st.isRetry ? 1 : 0,
+    rb: st.retryBadge || "",
+    cn: st.chunkNum || 0,
+    ct: st.chunkTotal || 0
+  };
+}
+
+function hydrateQueueStep(s) {
+  if (s.t === "c") {
+    const card = CARD_MAP[s.cid];
+    if (!card) return null;
+    return { type: "card", card, isRedirect: Boolean(s.r), chunkNum: s.cn || 0, chunkTotal: s.ct || 0 };
+  }
+  if (s.t === "m") {
+    const card = CARD_MAP[s.cid];
+    if (!card || !card.mythBuster) return null;
+    return { type: "myth", cardId: s.cid, myth: card.mythBuster };
+  }
+  const baseMcq = MCQ_MAP[s.qid] || MCQ_MAP[s.bid];
+  if (!baseMcq) return null;
+  let mcqObj = baseMcq;
+  if (s.vi >= 0 && baseMcq.variants && baseMcq.variants[s.vi]) {
+    const v = baseMcq.variants[s.vi];
+    mcqObj = { ...baseMcq, q: v.q, opts: v.opts, ans: v.ans, exp: v.exp };
+  }
+  return {
+    type: "mcq",
+    baseId: s.bid,
+    mcq: mcqObj,
+    variantIdx: s.vi >= 0 ? s.vi : null,
+    display: makeShuffledOptionOrder(mcqObj),
+    streakMiss: s.sm || 0,
+    isRetry: Boolean(s.ir),
+    retryBadge: s.rb || "",
+    chunkNum: s.cn || 0,
+    chunkTotal: s.ct || 0
+  };
+}
+
+function saveLessonProgressSnapshot(advanceIfAnswered = false) {
+  if (!session || session.kind !== "lesson") return;
+  if (!state.lessonProgress) state.lessonProgress = {};
+  const key = `${session.lessonId}:${session.mode}`;
+  const saveIdx = (advanceIfAnswered && session.answered) ? session.idx + 1 : session.idx;
+  if (saveIdx >= session.queue.length) {
+    delete state.lessonProgress[key];
+  } else {
+    state.lessonProgress[key] = {
+      idx: saveIdx,
+      queue: session.queue.map(serializeQueueStep),
+      firstAttemptCorrect: session.firstAttemptCorrect,
+      firstAttemptTotal: session.firstAttemptTotal,
+      seenBaseIds: Array.from(session.seenBaseIds),
+      missedBaseIds: Array.from(session.missedBaseIds),
+      savedAt: Date.now()
+    };
+  }
+  saveState();
+}
+
 function startLessonSession(lessonId, mode = "full") {
   const lesson = LESSON_MAP[lessonId];
   if (!lesson) return;
-  if (state.strictMode && state.hearts <= 0) {
-    showToast("হার্ট শেষ! ভুল ব্যাংক / SRS ড্রিল থেকে হার্ট অর্জন করো।");
-    activeTab = "review";
-    renderAll();
-    return;
+  if (!state.lessonProgress) state.lessonProgress = {};
+  const progKey = `${lessonId}:${mode}`;
+  const saved = state.lessonProgress[progKey];
+
+  if (saved && Array.isArray(saved.queue) && saved.queue.length && saved.idx < saved.queue.length) {
+    const hydrated = saved.queue.map(hydrateQueueStep).filter(Boolean);
+    if (hydrated.length && saved.idx < hydrated.length) {
+      session = {
+        kind: "lesson",
+        lessonId,
+        title: lesson.title,
+        mode,
+        queue: hydrated,
+        idx: saved.idx,
+        firstAttemptCorrect: saved.firstAttemptCorrect || 0,
+        firstAttemptTotal: saved.firstAttemptTotal || (lesson.mcqs || []).length,
+        seenBaseIds: new Set(saved.seenBaseIds || []),
+        missedBaseIds: new Set(saved.missedBaseIds || []),
+        answered: false,
+        selectedOpt: null,
+        slideGateLeft: 0,
+        understoodChecked: false,
+        cooldownLeft: 0
+      };
+      showToast(`📌 ধাপ ${saved.idx + 1}/${hydrated.length} থেকে আবার শুরু হলো`);
+      openPlayer();
+      return;
+    }
   }
 
   const queue = [];
@@ -665,6 +789,7 @@ function startLessonSession(lessonId, mode = "full") {
           type: "mcq",
           baseId: q.id,
           mcq: q,
+          variantIdx: null,
           display: makeShuffledOptionOrder(q),
           streakMiss: 0,
           isRetry: false,
@@ -680,6 +805,7 @@ function startLessonSession(lessonId, mode = "full") {
           type: "mcq",
           baseId: q.id,
           mcq: q,
+          variantIdx: null,
           display: makeShuffledOptionOrder(q),
           streakMiss: 0,
           isRetry: false,
@@ -693,6 +819,7 @@ function startLessonSession(lessonId, mode = "full") {
         type: "mcq",
         baseId: q.id,
         mcq: q,
+        variantIdx: null,
         display: makeShuffledOptionOrder(q),
         streakMiss: 0,
         isRetry: false,
@@ -718,16 +845,11 @@ function startLessonSession(lessonId, mode = "full") {
     understoodChecked: false,
     cooldownLeft: 0
   };
+  saveLessonProgressSnapshot(false);
   openPlayer();
 }
 
 function startBossQuiz(moduleId) {
-  if (state.strictMode && state.hearts <= 0) {
-    showToast("হার্ট শেষ! আগে SRS রিভিশন ড্রিল থেকে হার্ট অর্জন করো।");
-    activeTab = "review";
-    renderAll();
-    return;
-  }
   const mod = MODULE_MAP[moduleId];
   if (!mod) return;
   const pool = [];
@@ -802,6 +924,9 @@ function openPlayer() {
 }
 
 function closePlayer() {
+  if (session && session.kind === "lesson") {
+    saveLessonProgressSnapshot(true);
+  }
   clearPlayerTimers();
   session = null;
   const ov = document.getElementById("playerOverlay");
@@ -822,7 +947,7 @@ function renderPlayerStep() {
   document.getElementById("playerTitle").textContent = session.title;
   document.getElementById("playerStepCount").textContent = `${session.idx + 1} / ${session.queue.length}`;
   document.getElementById("playerProgressBar").style.width = `${Math.round((session.idx / session.queue.length) * 100)}%`;
-  document.getElementById("playerHearts").textContent = state.hearts;
+  document.getElementById("playerHearts").textContent = "∞";
 
   const bossBadge = document.getElementById("bossTimerBadge");
   if (session.kind === "boss" && step.type === "mcq") {
@@ -989,6 +1114,7 @@ function renderCardStep(step) {
   document.getElementById("btnNextStep").addEventListener("click", () => {
     if (session.slideGateLeft > 0 || !session.understoodChecked) return;
     session.idx++;
+    saveLessonProgressSnapshot(false);
     renderPlayerStep();
   });
 
@@ -1029,7 +1155,7 @@ function renderMythStep(step) {
     const btn = document.getElementById("btnMythNext");
     btn.disabled = false;
     btn.className = "px-5 py-2.5 rounded-xl font-bold text-sm bg-emerald-600 hover:bg-emerald-500 text-white";
-    btn.addEventListener("click", () => { session.idx++; renderPlayerStep(); });
+    btn.addEventListener("click", () => { session.idx++; saveLessonProgressSnapshot(false); renderPlayerStep(); });
   }));
   renderMath(body);
 }
@@ -1140,25 +1266,13 @@ function submitMcqAnswer(chosenIdx, timedOut) {
       // Remove from mistakes if mastered in review
       const mi = state.mistakes.indexOf(step.baseId);
       if (mi >= 0) state.mistakes.splice(mi, 1);
-      // Earn back hearts: +1 heart per 2 correct answers
-      if (state.hearts < state.maxHearts) {
-        state.srsCorrectStreak = (state.srsCorrectStreak || 0) + 1;
-        if (state.srsCorrectStreak >= 2) {
-          state.srsCorrectStreak = 0;
-          state.hearts = Math.min(state.maxHearts, state.hearts + 1);
-          strictNote = "❤️ দারুণ! ২টি সঠিক উত্তরে +১ হার্ট ফিরে পেয়েছ!";
-        } else {
-          strictNote = "❤️ আরও ১টি সঠিক উত্তর দিলে +১ হার্ট পাবে!";
-        }
-      }
+
     }
     fb.className = "p-4 rounded-xl text-sm space-y-1.5 bg-emerald-500/15 border border-emerald-500/40 text-emerald-100";
     fb.innerHTML = `<div class="font-bold text-emerald-400">✅ সঠিক উত্তর! (+10 XP)</div><div>${escHtml(step.mcq.exp)}</div>${strictNote ? `<div class="text-xs font-bold text-amber-300 pt-1">${strictNote}</div>` : ''}`;
   } else {
     if (!state.mistakes.includes(step.baseId)) state.mistakes.push(step.baseId);
-    if (state.strictMode && session.kind !== "srs") {
-      state.hearts = Math.max(0, state.hearts - 1);
-    }
+    // Unlimited hearts — no heart deduction in Strict Mode
 
     // === STRICT LEARNING MODE ADAPTIVE REMEDIATION ===
     if (state.strictMode && (session.kind === "lesson" || session.kind === "boss")) {
@@ -1175,10 +1289,13 @@ function submitMcqAnswer(chosenIdx, timedOut) {
             type: "mcq",
             baseId: step.baseId,
             mcq: v1,
+            variantIdx: 0,
             display: makeShuffledOptionOrder(v1),
             streakMiss: 1,
             isRetry: true,
-            retryBadge: "🔄 নতুন মান দিয়ে যাচাই (১ম রিট্রাই)"
+            retryBadge: "🔄 নতুন মান দিয়ে যাচাই (১ম রিট্রাই)",
+            chunkNum: step.chunkNum || 0,
+            chunkTotal: step.chunkTotal || 0
           });
           strictNote = "🔄 স্ট্রিক্ট মোড: পরের ধাপেই একই সূত্রের নতুন মান দিয়ে আবার যাচাই হবে!";
         } else if (nextMissCount >= 2 && linkedCard) {
@@ -1186,15 +1303,18 @@ function submitMcqAnswer(chosenIdx, timedOut) {
           const v2Src = variants[1] || variants[0] || baseMcq;
           const v2 = { ...baseMcq, q: v2Src.q, opts: v2Src.opts, ans: v2Src.ans, exp: v2Src.exp };
           session.queue.splice(session.idx + 1, 0,
-            { type: "card", card: linkedCard, isRedirect: true },
+            { type: "card", card: linkedCard, isRedirect: true, chunkNum: step.chunkNum || 0, chunkTotal: step.chunkTotal || 0 },
             {
               type: "mcq",
               baseId: step.baseId,
               mcq: v2,
+              variantIdx: variants[1] ? 1 : 0,
               display: makeShuffledOptionOrder(v2),
               streakMiss: 2,
               isRetry: true,
-              retryBadge: "🎯 স্লাইড রিভিশনের পর নতুন মান যাচাই"
+              retryBadge: "🎯 স্লাইড রিভিশনের পর নতুন মান যাচাই",
+              chunkNum: step.chunkNum || 0,
+              chunkTotal: step.chunkTotal || 0
             }
           );
           strictNote = "🔁 টানা ২য় ভুল: আগে সংশ্লিষ্ট থিওরি কার্ডটি রিভিশন করো, তারপর নতুন মান দিয়ে যাচাই হবে!";
@@ -1220,7 +1340,7 @@ function submitMcqAnswer(chosenIdx, timedOut) {
           strictNote = "🧠 স্ট্রিক্ট মোড: এই কনসেপ্টটি ২ ধাপ পর ভিন্ন কোণ থেকে আবার যাচাই করা হবে!";
         } else if (nextMissCount >= 2 && linkedCard) {
           const followStep = linkedCard.mythBuster
-            ? { type: "myth", myth: linkedCard.mythBuster }
+            ? { type: "myth", cardId: linkedCard.id, myth: linkedCard.mythBuster }
             : {
                 type: "mcq",
                 baseId: step.baseId,
@@ -1243,8 +1363,9 @@ function submitMcqAnswer(chosenIdx, timedOut) {
     fb.innerHTML = `<div class="font-bold text-rose-400">${timedOut ? '⏰ সময় শেষ!' : '❌ ভুল উত্তর!'}</div><div>${escHtml(step.mcq.exp)}</div>${strictNote ? `<div class="text-xs font-bold text-amber-300 pt-1">${strictNote}</div>` : ''}`;
   }
 
+  saveLessonProgressSnapshot(true);
   saveState();
-  document.getElementById("playerHearts").textContent = state.hearts;
+  document.getElementById("playerHearts").textContent = "∞";
   renderMath(fb);
 
   const btn = document.getElementById("btnMcqNext");
@@ -1269,17 +1390,11 @@ function submitMcqAnswer(chosenIdx, timedOut) {
 
   function enableNextMcqBtn() {
     btn.disabled = false;
-    btn.textContent = (state.strictMode && state.hearts <= 0 && session.kind !== "srs") ? "হার্ট শেষ — রিভিশনে যাও →" : "পরবর্তী →";
+    btn.textContent = "পরবর্তী →";
     btn.className = "ml-auto px-5 py-2.5 rounded-xl font-bold text-sm bg-emerald-600 hover:bg-emerald-500 text-white";
     btn.onclick = () => {
-      if (state.strictMode && state.hearts <= 0 && session.kind !== "srs") {
-        closePlayer();
-        activeTab = "review";
-        renderAll();
-        showToast("হার্ট শূন্য! SRS রিভিশন ড্রিল থেকে হার্ট অর্জন করো।");
-        return;
-      }
       session.idx++;
+      saveLessonProgressSnapshot(false);
       renderPlayerStep();
     };
   }
@@ -1293,6 +1408,7 @@ function renderSessionSummary() {
   const passed = acc >= threshold;
 
   if (session.kind === "lesson") {
+    if (state.lessonProgress) delete state.lessonProgress[`${session.lessonId}:${session.mode}`];
     const prev = state.completedLessons[session.lessonId] || { bestAcc: 0, passed: false, attempts: 0 };
     state.completedLessons[session.lessonId] = {
       bestAcc: Math.max(prev.bestAcc, acc),
@@ -1611,13 +1727,13 @@ function renderReviewTab() {
 
   main.innerHTML = `
     <div class="space-y-5">
-      <div class="glass rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-rose-500/30">
+      <div class="glass rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-emerald-500/30">
         <div>
-          <h2 class="text-base font-extrabold flex items-center gap-2">❤️ হার্ট রিফিল — SRS রিভিশন ড্রিল (${state.hearts}/${state.maxHearts})</h2>
-          <p class="text-xs text-slate-400 mt-0.5">স্ট্রিক্ট মোডে ফ্রি রিফিল নেই! প্রতি ২টি সঠিক উত্তরে +১ ❤️ অর্জন করো।</p>
+          <h2 class="text-base font-extrabold flex items-center gap-2">🔁 কুইক SRS রিভিশন ড্রিল (আনলিমিটেড হার্ট ❤️ ∞)</h2>
+          <p class="text-xs text-slate-400 mt-0.5">হার্টের কোনো সীমা নেই—ভুল ব্যাংক ও গুরুত্বপূর্ণ MCQ মিশিয়ে দ্রুত রিভিশন দাও।</p>
         </div>
-        <button id="btnStartSrsHearts" class="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shrink-0">
-          ❤️ হার্ট অর্জনের ড্রিল শুরু করো
+        <button id="btnStartSrsHearts" class="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shrink-0">
+          🔁 SRS রিভিশন শুরু করো
         </button>
       </div>
 
@@ -2030,6 +2146,8 @@ document.addEventListener("keydown", e => {
 });
 
 window.addEventListener("online", () => { if (syncProfile) pullFromCloud(); });
+window.addEventListener("pagehide", () => { if (session && session.kind === "lesson") saveLessonProgressSnapshot(true); });
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden" && session && session.kind === "lesson") saveLessonProgressSnapshot(true); });
 
 window.addEventListener("DOMContentLoaded", () => {
   rebuildIndex();
