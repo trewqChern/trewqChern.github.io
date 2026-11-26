@@ -1225,24 +1225,81 @@ function loadState() {
 
 const SYNC_API = 'https://du-b-grammar-sync.treytrewq61.workers.dev/sync/';
 const SYNC_PROFILE_KEY = 'du_b_grammar_sync_profile';
-let syncStatus = 'idle'; // idle | syncing | synced | offline | error
+const SYNC_SKIP_KEY = 'du_b_grammar_phone_skipped';
+const OWNER_DEFAULT_PHONE_PROFILE = 'phone_8801339129852';
+let syncStatus = 'idle'; // idle | syncing | synced | offline | error | unlinked
 let lastSyncTime = 0;
 let syncPushTimer = null;
 
+function toEnDigits(str) {
+  const bn = '০১২৩৪৫৬৭৮৯';
+  return String(str || '').replace(/[০-৯]/g, (ch) => String(bn.indexOf(ch)));
+}
+
+function normalizePhoneToProfile(raw) {
+  const ascii = toEnDigits(raw).trim();
+  if (!ascii) return null;
+  if (/^phone_[0-9]{8,15}$/.test(ascii)) return ascii;
+  let digits = ascii.replace(/[^0-9]/g, '');
+  if (digits.startsWith('00')) digits = digits.slice(2);
+  // Normalize Bangladeshi local 11-digit mobile numbers (01XXXXXXXXX -> 8801XXXXXXXXX)
+  if (digits.length === 11 && digits.startsWith('01')) {
+    digits = '88' + digits;
+  }
+  if (digits.length < 8 || digits.length > 15) return null;
+  return 'phone_' + digits;
+}
+
+function formatProfileDisplay(profile) {
+  if (!profile) return 'লিংক করা নেই';
+  if (profile.startsWith('phone_')) return '+' + profile.slice(6);
+  return profile;
+}
+
+function migrateLegacyOwnerProfile() {
+  try {
+    const saved = (localStorage.getItem(SYNC_PROFILE_KEY) || '').trim();
+    if (saved === 'trewqChern-main') {
+      localStorage.setItem(SYNC_PROFILE_KEY, OWNER_DEFAULT_PHONE_PROFILE);
+      return;
+    }
+    // If no profile saved yet, but browser already has cached local progress from before phone onboarding,
+    // migrate it automatically to the owner's phone number so nothing is lost.
+    if (!saved) {
+      const rawState = localStorage.getItem(STORAGE_KEY);
+      if (rawState) {
+        const parsed = JSON.parse(rawState);
+        const hasProgress = (parsed.xp > 0) ||
+          (parsed.completedLessons && Object.keys(parsed.completedLessons).length > 0) ||
+          (Array.isArray(parsed.customLessons) && parsed.customLessons.length > 0);
+        if (hasProgress) {
+          localStorage.setItem(SYNC_PROFILE_KEY, OWNER_DEFAULT_PHONE_PROFILE);
+        }
+      }
+    }
+  } catch (e) {}
+}
+
+migrateLegacyOwnerProfile();
+
 function getSyncProfile() {
   try {
-    const p = (localStorage.getItem(SYNC_PROFILE_KEY) || 'trewqChern-main').trim();
-    return /^[a-zA-Z0-9_-]{2,64}$/.test(p) ? p : 'trewqChern-main';
+    const p = (localStorage.getItem(SYNC_PROFILE_KEY) || '').trim();
+    if (!p) return '';
+    return /^[a-zA-Z0-9_-]{2,64}$/.test(p) ? p : '';
   } catch (e) {
-    return 'trewqChern-main';
+    return '';
   }
 }
 
-function setSyncProfile(profile) {
-  const clean = String(profile || '').trim();
-  if (!/^[a-zA-Z0-9_-]{2,64}$/.test(clean)) return false;
-  try { localStorage.setItem(SYNC_PROFILE_KEY, clean); } catch (e) {}
-  return true;
+function setSyncPhone(rawPhone) {
+  const normalized = normalizePhoneToProfile(rawPhone);
+  if (!normalized) return null;
+  try {
+    localStorage.setItem(SYNC_PROFILE_KEY, normalized);
+    localStorage.removeItem(SYNC_SKIP_KEY);
+  } catch (e) {}
+  return normalized;
 }
 
 function getSyncPayload() {
@@ -1275,6 +1332,9 @@ function updateSyncBadge(status) {
   } else if (status === 'offline' || status === 'error') {
     lbl.textContent = 'অফলাইন';
     btn.className = 'flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/50 border border-amber-200/70 dark:border-amber-800/60 text-amber-700 dark:text-amber-300 text-xs font-bold hover:bg-amber-100 dark:hover:bg-amber-900/60 transition';
+  } else if (status === 'unlinked') {
+    lbl.textContent = 'নম্বর দিন';
+    btn.className = 'flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 text-xs font-bold hover:bg-amber-100 dark:hover:bg-amber-900/60 transition';
   } else {
     lbl.textContent = 'ক্লাউড';
   }
@@ -1303,12 +1363,16 @@ function scheduleCloudPush() {
 }
 
 async function pushToCloud() {
+  const profile = getSyncProfile();
+  if (!profile) {
+    updateSyncBadge('unlinked');
+    return false;
+  }
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
     updateSyncBadge('offline');
     return false;
   }
   updateSyncBadge('syncing');
-  const profile = getSyncProfile();
   const payload = getSyncPayload();
   try {
     const res = await fetch(SYNC_API + encodeURIComponent(profile), {
@@ -1331,12 +1395,16 @@ async function pushToCloud() {
 }
 
 async function pullFromCloud(showNotification = false) {
+  const profile = getSyncProfile();
+  if (!profile) {
+    updateSyncBadge('unlinked');
+    return false;
+  }
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
     updateSyncBadge('offline');
     return false;
   }
   updateSyncBadge('syncing');
-  const profile = getSyncProfile();
   try {
     const res = await fetch(SYNC_API + encodeURIComponent(profile), { method: 'GET' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -2866,11 +2934,11 @@ function openHeartsModal() {
           }">${syncStatus === 'synced' ? 'সিঙ্কড' : syncStatus === 'syncing' ? 'সিঙ্ক হচ্ছে...' : 'অফলাইন রেডি'}</span>
         </div>
         <div class="flex gap-2">
-          <input id="input-sync-profile" type="text" value="${getSyncProfile()}" placeholder="প্রোফাইল আইডি (যেমন: trewqChern-main)" class="flex-1 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs sm:text-sm font-mono" />
+          <input id="input-sync-profile" type="tel" value="${getSyncProfile() ? formatProfileDisplay(getSyncProfile()) : ''}" placeholder="যেমন: +8801XXXXXXXXX বা 01XXXXXXXXX" class="flex-1 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs sm:text-sm font-mono" />
           <button id="btn-save-sync-profile" class="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shrink-0">সেভ ও সিঙ্ক</button>
         </div>
         <div class="flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-400">
-          <span>সব ডিভাইসে একই প্রোফাইল আইডি ব্যবহার করুন</span>
+          <span>ফোন নম্বর দিয়ে সব ডিভাইসে অগ্রগতি সিঙ্ক করুন</span>
           <button id="btn-sync-now" class="text-blue-600 dark:text-blue-400 font-bold hover:underline">এখনই সিঙ্ক করুন ↻</button>
         </div>
       </div>
@@ -2912,11 +2980,12 @@ function openHeartsModal() {
 
   document.getElementById('btn-save-sync-profile')?.addEventListener('click', () => {
     const val = document.getElementById('input-sync-profile')?.value || '';
-    if (!setSyncProfile(val)) {
-      showToast('প্রোফাইল আইডিতে ২–৬৪ অক্ষর (a-z, 0-9, -, _) দিন');
+    const norm = setSyncPhone(val);
+    if (!norm) {
+      showToast('সঠিক ফোন নম্বর দিন (যেমন: 017XXXXXXXX বা +8801XXXXXXXXX)');
       return;
     }
-    showToast('প্রোফাইল সেভ হয়েছে, সিঙ্ক চলছে...');
+    showToast(`নম্বর ${formatProfileDisplay(norm)} সেভ হয়েছে, সিঙ্ক চলছে...`);
     pullFromCloud(true).then(() => openHeartsModal());
   });
 
@@ -3191,9 +3260,77 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+function openPhoneOnboardingModal() {
+  const backdrop = document.getElementById('modal-backdrop');
+  const content = document.getElementById('modal-content');
+  backdrop.classList.remove('hidden');
+
+  content.innerHTML = `
+    <div class="text-center mb-4">
+      <div class="w-12 h-12 mx-auto rounded-2xl bg-gradient-to-br from-blue-600 to-teal-500 text-white flex items-center justify-center text-2xl shadow-md mb-2.5">
+        📱
+      </div>
+      <h3 class="text-lg font-extrabold text-slate-900 dark:text-white">অগ্রগতি সেভ করতে ফোন নম্বর দিন</h3>
+      <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
+        আপনার XP, সম্পন্ন লেসন, ভুল উত্তর ও AI লেসন ক্লাউডে সেভ থাকবে—একই নম্বর দিয়ে যেকোনো ফোন বা পিসি থেকে ফিরে পাবেন।
+      </p>
+    </div>
+
+    <form id="form-phone-onboard" class="space-y-3">
+      <div>
+        <label class="block text-xs font-bold mb-1 text-slate-700 dark:text-slate-300">মোবাইল নম্বর</label>
+        <input id="input-onboard-phone" type="tel" autocomplete="tel" required placeholder="01XXXXXXXXX বা +8801XXXXXXXXX" class="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-base font-mono focus:outline-none focus:border-blue-600" />
+        <div id="onboard-phone-err" class="hidden text-xs text-rose-600 dark:text-rose-400 font-semibold mt-1"></div>
+      </div>
+
+      <button type="submit" class="btn-3d w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-700 hover:to-teal-600 text-white font-extrabold text-sm sm:text-base shadow-md">
+        সেভ করুন ও পড়া শুরু করুন →
+      </button>
+
+      <button type="button" id="btn-skip-phone" class="w-full py-2 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition">
+        পরে দেব (শুধু এই ডিভাইসে প্র্যাকটিস করুন)
+      </button>
+    </form>
+  `;
+
+  setTimeout(() => document.getElementById('input-onboard-phone')?.focus(), 80);
+
+  document.getElementById('form-phone-onboard')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const raw = document.getElementById('input-onboard-phone')?.value || '';
+    const errEl = document.getElementById('onboard-phone-err');
+    const norm = setSyncPhone(raw);
+    if (!norm) {
+      if (errEl) {
+        errEl.textContent = 'সঠিক মোবাইল নম্বর দিন (যেমন: 01712345678 বা +8801712345678)';
+        errEl.classList.remove('hidden');
+      }
+      return;
+    }
+    backdrop.classList.add('hidden');
+    showToast(`নম্বর ${formatProfileDisplay(norm)} যুক্ত হয়েছে!`);
+    await pullFromCloud(true);
+  });
+
+  document.getElementById('btn-skip-phone')?.addEventListener('click', () => {
+    try { localStorage.setItem(SYNC_SKIP_KEY, '1'); } catch (e) {}
+    backdrop.classList.add('hidden');
+    updateSyncBadge('unlinked');
+  });
+}
+
 // Boot App
 renderApp();
-pullFromCloud(false);
+if (getSyncProfile()) {
+  pullFromCloud(false);
+} else {
+  updateSyncBadge('unlinked');
+  let skipped = false;
+  try { skipped = localStorage.getItem(SYNC_SKIP_KEY) === '1'; } catch (e) {}
+  if (!skipped) {
+    openPhoneOnboardingModal();
+  }
+}
 </script>
 </body>
 </html>
