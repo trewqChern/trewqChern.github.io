@@ -149,6 +149,49 @@ tailwind.config = {
   </div>
   <div id="playerBody" class="flex-1 overflow-y-auto px-3 sm:px-6 py-4 sm:py-6"></div>
   <div id="playerFooter" class="glass border-t px-3 sm:px-6 py-3 shrink-0"></div>
+
+  <!-- FLOATING LESSON AI CHAT FAB & WINDOW -->
+  <button id="btnLessonAiFab" class="fixed bottom-20 right-4 sm:right-6 z-[55] px-3.5 py-2.5 rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-xs sm:text-sm font-bold shadow-2xl flex items-center gap-1.5 border border-indigo-400/40 transition">
+    <span>✨</span><span>AI সাহায্য</span>
+    <span id="lessonAiBadge" class="hidden px-1.5 py-0.5 text-[10px] rounded-full bg-emerald-500 text-white font-bold">0</span>
+  </button>
+
+  <div id="lessonAiDrawer" class="fixed bottom-20 right-3 left-3 sm:left-auto sm:right-6 sm:w-[400px] max-h-[72vh] z-[58] hidden flex-col glass rounded-2xl shadow-2xl border border-indigo-500/40 overflow-hidden">
+    <div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between gap-2 bg-indigo-950/50">
+      <div class="min-w-0">
+        <div class="text-xs sm:text-sm font-extrabold text-indigo-300 truncate">✨ লেসন AI টিউটর</div>
+        <div id="lessonAiSubtitle" class="text-[11px] text-slate-400 truncate">এই অধ্যায়ের উত্তরগুলো এখানে সেভ থাকবে</div>
+      </div>
+      <div class="flex items-center gap-1 shrink-0">
+        <button id="btnClearLessonAi" class="px-2 py-1 rounded-lg text-[11px] text-rose-400 hover:bg-rose-500/15" title="এই লেসনের চ্যাট মুছুন">মুছুন</button>
+        <button id="btnCloseLessonAi" class="p-1 rounded-lg hover:bg-slate-800 text-slate-300"><i data-lucide="x" class="w-4 h-4"></i></button>
+      </div>
+    </div>
+    <div id="lessonAiLog" class="flex-1 overflow-y-auto p-3.5 space-y-2.5 min-h-[200px] max-h-[44vh]"></div>
+    <div class="px-3 pt-2 pb-1 flex items-center gap-1.5 overflow-x-auto no-scrollbar border-t border-slate-800/80">
+      <button type="button" data-qchip="এই কার্ড/প্রশ্নটি একদম সহজ বাংলায় ধাপে ধাপে বুঝিয়ে দাও" class="lesson-ai-chip px-2.5 py-1 rounded-full glass-2 hover:border-indigo-400 text-[11px] whitespace-nowrap">💡 সহজ করে বোঝাও</button>
+      <button type="button" data-qchip="ক্যালকুলেটর ছাড়া ২০ সেকেন্ডে করার শর্টকাট ট্রিক বলো" class="lesson-ai-chip px-2.5 py-1 rounded-full glass-2 hover:border-indigo-400 text-[11px] whitespace-nowrap">⚡ শর্টকাট ট্রিক</button>
+      <button type="button" data-qchip="এখানে শিক্ষার্থীরা সাধারণত কী ভুল করে?" class="lesson-ai-chip px-2.5 py-1 rounded-full glass-2 hover:border-indigo-400 text-[11px] whitespace-nowrap">⚠️ সাধারণ ফাঁদ</button>
+    </div>
+    <form id="lessonAiForm" class="p-2.5 flex items-center gap-2">
+      <input id="lessonAiInput" type="text" placeholder="এই অধ্যায় বা প্রশ্ন নিয়ে জিজ্ঞেস করো..." class="flex-1 px-3 py-2 rounded-xl glass-2 text-xs sm:text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+      <button id="btnLessonAiSend" type="submit" class="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shrink-0">পাঠাও</button>
+    </form>
+  </div>
+</div>
+
+<!-- SAVED LESSON AI NOTES MODAL (ON LESSON PAGE/CARD) -->
+<div id="lessonNotesModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/75 backdrop-blur-sm p-3 sm:p-4">
+  <div class="glass rounded-2xl max-w-2xl w-full max-h-[82vh] flex flex-col shadow-2xl border border-indigo-500/35 overflow-hidden">
+    <div class="px-4 sm:px-5 py-3.5 border-b border-slate-800 flex items-center justify-between gap-2">
+      <div>
+        <h3 id="lessonNotesTitle" class="text-base font-extrabold text-indigo-300">💬 সেভ করা AI নোটস</h3>
+        <p class="text-xs text-slate-400">এই অধ্যায়ে AI টিউটরের দেওয়া সব ব্যাখ্যা ও শর্টকাট</p>
+      </div>
+      <button id="btnCloseLessonNotes" class="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400"><i data-lucide="x" class="w-5 h-5"></i></button>
+    </div>
+    <div id="lessonNotesBody" class="flex-1 overflow-y-auto p-4 space-y-3"></div>
+  </div>
 </div>
 
 <!-- PHONE SYNC MODAL -->
@@ -193,6 +236,7 @@ const DEFAULT_STATE = {
   lessonProgress: {},     // { "lessonId:mode": { idx, queue, firstAttemptCorrect, firstAttemptTotal, seenBaseIds, missedBaseIds, answeredCurrent } }
   customLessons: [],      // AI generated lessons
   chatHistory: [],        // [{ role, content, lessonId?, suggestedPrompts? }]
+  lessonChats: {},        // { [lessonId]: [{ role, content, stepLabel, ts }] }
   srsCorrectStreak: 0,    // earns +1 heart every 2 correct answers
   updatedAt: 0
 };
@@ -556,10 +600,16 @@ function renderLearnTab() {
                   </div>
                   <h3 class="font-bold text-base leading-snug">${escHtml(lesson.title)}</h3>
                   <p class="text-xs text-slate-400 mt-1 line-clamp-2">${escHtml(lesson.subtitle)}</p>
-                  <div class="flex items-center gap-3 mt-2.5 text-[11px] text-slate-400">
+                  <div class="flex items-center flex-wrap gap-2.5 mt-2.5 text-[11px] text-slate-400">
                     <span>📘 ${lesson.cards.length} কার্ড</span>
                     <span>📝 ${lesson.mcqs.length} MCQ</span>
                     <span>✍️ ${(lesson.writtenDrills||[]).length} লিখিত</span>
+                    ${(() => {
+                      const lchats = (state.lessonChats && state.lessonChats[lesson.id]) || [];
+                      const aiReplies = lchats.filter(m => m.role === "assistant").length;
+                      if (!aiReplies) return '';
+                      return `<button data-open-lnotes="${lesson.id}" class="open-lnotes-btn px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/35 hover:bg-indigo-500/30 font-bold">✨ AI নোটস (${aiReplies})</button>`;
+                    })()}
                   </div>
                 </div>
                 ${(() => {
@@ -614,6 +664,9 @@ function renderLearnTab() {
   }));
   document.querySelectorAll(".play-btn").forEach(b => b.addEventListener("click", () => {
     startLessonSession(b.dataset.playLesson, b.dataset.mode);
+  }));
+  document.querySelectorAll(".open-lnotes-btn").forEach(b => b.addEventListener("click", () => {
+    openLessonNotesModal(b.dataset.openLnotes);
   }));
   document.querySelectorAll(".reset-prog-btn").forEach(b => b.addEventListener("click", () => {
     const lid = b.dataset.resetProg;
@@ -916,10 +969,180 @@ function startCustomMcqSession(title, mcqIds, kind = "review") {
   openPlayer();
 }
 
+let lessonAiBusy = false;
+
+function getCurrentChatLessonId() {
+  if (!session) return null;
+  if (session.lessonId) return session.lessonId;
+  const step = session.queue && session.queue[session.idx];
+  if (step && step.mcq && step.mcq.lessonId) return step.mcq.lessonId;
+  if (step && step.card && step.card.lessonId) return step.card.lessonId;
+  return session.moduleId || "general";
+}
+
+function getCurrentStepContext() {
+  if (!session) return { label: "", snippet: "" };
+  const step = session.queue && session.queue[session.idx];
+  if (!step) return { label: "সারাংশ", snippet: session.title || "" };
+  if (step.type === "card" && step.card) {
+    const f = (step.card.formulas || []).map(x => x.label + ": " + x.latex).join(" | ");
+    return {
+      label: step.chunkNum ? `মাইক্রো-কার্ড ${step.chunkNum}: ${step.card.title}` : step.card.title,
+      snippet: `Card: ${step.card.title}. Intuition: ${step.card.intuition}. Formulas: ${f}. Tip: ${step.card.tip}`
+    };
+  }
+  if (step.type === "mcq" && step.mcq) {
+    return {
+      label: `প্রশ্ন ${session.idx + 1}`,
+      snippet: `MCQ: ${step.mcq.q} | Options: ${(step.mcq.opts || []).join(" ; ")} | Explanation: ${step.mcq.exp || ""}`
+    };
+  }
+  if (step.type === "myth" && step.myth) {
+    return { label: "সত্য/মিথ্যা যাচাই", snippet: `Statement: ${step.myth.statement}` };
+  }
+  return { label: session.title || "", snippet: "" };
+}
+
+function updateLessonAiBadge() {
+  const lid = getCurrentChatLessonId();
+  const list = (lid && state.lessonChats && state.lessonChats[lid]) || [];
+  const cnt = list.filter(m => m.role === "assistant").length;
+  const badge = document.getElementById("lessonAiBadge");
+  if (!badge) return;
+  if (cnt > 0) {
+    badge.textContent = cnt;
+    badge.classList.remove("hidden");
+  } else {
+    badge.classList.add("hidden");
+  }
+}
+
+function renderLessonAiDrawer() {
+  const lid = getCurrentChatLessonId();
+  const lessonObj = LESSON_MAP[lid];
+  const sub = document.getElementById("lessonAiSubtitle");
+  if (sub) sub.textContent = lessonObj ? `${lessonObj.title} — উত্তরগুলো এই লেসনে সেভ থাকবে` : "উত্তরগুলো এই লেসনে সেভ থাকবে";
+
+  const list = (lid && state.lessonChats && state.lessonChats[lid]) || [];
+  const log = document.getElementById("lessonAiLog");
+  if (!log) return;
+  if (!list.length) {
+    log.innerHTML = `<div class="text-xs text-slate-400 text-center py-6 leading-relaxed">এই অধ্যায় বা বর্তমান প্রশ্ন নিয়ে যেকোনো প্রশ্ন করো।<br>AI-এর সব উত্তর স্বয়ংক্রিয়ভাবে এই লেসনের পেজে সেভ থাকবে।</div>`;
+  } else {
+    log.innerHTML = list.map(m => `
+      <div class="flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}">
+        <div class="max-w-[90%] rounded-2xl px-3 py-2 text-xs sm:text-sm leading-relaxed space-y-1 ${m.role === 'user' ? 'bg-indigo-600 text-white' : 'glass-2'}">
+          ${m.stepLabel ? `<div class="text-[10px] opacity-75 font-semibold">${escHtml(m.stepLabel)}</div>` : ''}
+          <div class="whitespace-pre-wrap">${escHtml(m.content)}</div>
+        </div>
+      </div>
+    `).join("") + (lessonAiBusy ? `<div class="text-xs text-indigo-300 animate-pulse">✨ AI উত্তর লিখছে...</div>` : "");
+  }
+  updateLessonAiBadge();
+  renderMath(log);
+  log.scrollTop = log.scrollHeight;
+}
+
+async function sendLessonAiMessage(text) {
+  const lid = getCurrentChatLessonId();
+  if (!lid || !text || lessonAiBusy) return;
+  lessonAiBusy = true;
+  if (!state.lessonChats) state.lessonChats = {};
+  if (!state.lessonChats[lid]) state.lessonChats[lid] = [];
+
+  const ctx = getCurrentStepContext();
+  state.lessonChats[lid].push({ role: "user", content: text, stepLabel: ctx.label, ts: Date.now() });
+  saveState();
+  renderLessonAiDrawer();
+
+  try {
+    const lessonObj = LESSON_MAP[lid];
+    const recentMsgs = state.lessonChats[lid].slice(-6).map(m => ({ role: m.role, content: m.content }));
+    // Prepend current card/MCQ context to the last user message sent to worker
+    const apiMsgs = recentMsgs.slice(0, -1).concat([{
+      role: "user",
+      content: `[Lesson: ${lessonObj ? lessonObj.title : lid} | Current Step: ${ctx.label}]
+Context: ${ctx.snippet}
+Student question: ${text}`
+    }]);
+
+    const r = await fetch(`${WORKER_URL}/ai/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messages: apiMsgs,
+        forceLesson: false,
+        context: { xp: state.xp, currentLesson: lessonObj ? lessonObj.title : lid }
+      })
+    });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error || "AI উত্তর দিতে পারেনি");
+    state.lessonChats[lid].push({
+      role: "assistant",
+      content: d.reply || "সম্পন্ন!",
+      stepLabel: ctx.label,
+      ts: Date.now()
+    });
+    saveState();
+  } catch (e) {
+    state.lessonChats[lid].push({
+      role: "assistant",
+      content: `দুঃখিত, এই মুহূর্তে উত্তর আনা যায়নি (${e.message})।`,
+      stepLabel: ctx.label,
+      ts: Date.now()
+    });
+    saveState();
+  }
+  lessonAiBusy = false;
+  renderLessonAiDrawer();
+}
+
+function openLessonNotesModal(lessonId) {
+  const lessonObj = LESSON_MAP[lessonId];
+  const list = (state.lessonChats && state.lessonChats[lessonId]) || [];
+  document.getElementById("lessonNotesTitle").textContent = `✨ AI নোটস — ${lessonObj ? lessonObj.title : lessonId}`;
+  const body = document.getElementById("lessonNotesBody");
+  if (!list.length) {
+    body.innerHTML = `<div class="text-sm text-slate-400 text-center py-8">এই অধ্যায়ের জন্য এখনো কোনো AI উত্তর সেভ করা হয়নি।</div>`;
+  } else {
+    body.innerHTML = list.map((m, idx) => `
+      <div class="rounded-xl p-3.5 space-y-1.5 ${m.role === 'user' ? 'bg-indigo-600/20 border border-indigo-500/30' : 'glass-2 border border-emerald-500/25'}">
+        <div class="flex items-center justify-between gap-2 text-[11px] font-bold ${m.role === 'user' ? 'text-indigo-300' : 'text-emerald-400'}">
+          <span>${m.role === 'user' ? '🙋 তোমার প্রশ্ন' : '✨ AI টিউটরের ব্যাখ্যা'}${m.stepLabel ? ' • ' + escHtml(m.stepLabel) : ''}</span>
+          ${m.role === 'assistant' ? `<button data-del-lnote="${lessonId}:${idx}" class="del-lnote-btn text-[10px] text-rose-400 hover:underline">মুছুন</button>` : ''}
+        </div>
+        <div class="text-xs sm:text-sm leading-relaxed whitespace-pre-wrap">${escHtml(m.content)}</div>
+      </div>
+    `).join("");
+    body.querySelectorAll(".del-lnote-btn").forEach(b => b.addEventListener("click", () => {
+      const [lid, iStr] = b.dataset.delLnote.split(":");
+      const i = Number(iStr);
+      if (state.lessonChats && state.lessonChats[lid]) {
+        state.lessonChats[lid].splice(i, 1);
+        saveState();
+        openLessonNotesModal(lid);
+        renderLearnTab();
+      }
+    }));
+  }
+  const modal = document.getElementById("lessonNotesModal");
+  modal.classList.remove("hidden");
+  modal.classList.add("flex");
+  renderMath(body);
+  refreshIcons();
+}
+
+function closeLessonAiDrawer() {
+  const dr = document.getElementById("lessonAiDrawer");
+  if (dr) { dr.classList.add("hidden"); dr.classList.remove("flex"); }
+}
+
 function openPlayer() {
   const ov = document.getElementById("playerOverlay");
   ov.classList.remove("hidden");
   ov.classList.add("flex");
+  closeLessonAiDrawer();
+  updateLessonAiBadge();
   renderPlayerStep();
 }
 
@@ -927,6 +1150,7 @@ function closePlayer() {
   if (session && session.kind === "lesson") {
     saveLessonProgressSnapshot(true);
   }
+  closeLessonAiDrawer();
   clearPlayerTimers();
   session = null;
   const ov = document.getElementById("playerOverlay");
@@ -2132,9 +2356,53 @@ document.getElementById("btnSaveSyncPhone").addEventListener("click", () => {
   showToast("ফোন নম্বর সিঙ্ক যুক্ত হয়েছে!");
 });
 
-// Keyboard shortcuts in Player (respecting Strict Mode locks!)
+// Floating Lesson AI Chat bindings
+document.getElementById("btnLessonAiFab").addEventListener("click", () => {
+  const dr = document.getElementById("lessonAiDrawer");
+  const isOpen = dr.classList.contains("flex");
+  if (isOpen) {
+    closeLessonAiDrawer();
+  } else {
+    dr.classList.remove("hidden");
+    dr.classList.add("flex");
+    renderLessonAiDrawer();
+    refreshIcons();
+    const inp = document.getElementById("lessonAiInput");
+    if (inp) inp.focus();
+  }
+});
+document.getElementById("btnCloseLessonAi").addEventListener("click", closeLessonAiDrawer);
+document.getElementById("btnClearLessonAi").addEventListener("click", () => {
+  const lid = getCurrentChatLessonId();
+  if (lid && state.lessonChats && state.lessonChats[lid]) {
+    state.lessonChats[lid] = [];
+    saveState();
+    renderLessonAiDrawer();
+    showToast("এই লেসনের AI চ্যাট মুছে ফেলা হয়েছে");
+  }
+});
+document.querySelectorAll(".lesson-ai-chip").forEach(b => b.addEventListener("click", () => {
+  sendLessonAiMessage(b.dataset.qchip);
+}));
+document.getElementById("lessonAiForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const inp = document.getElementById("lessonAiInput");
+  const txt = inp.value.trim();
+  if (!txt || lessonAiBusy) return;
+  inp.value = "";
+  sendLessonAiMessage(txt);
+});
+document.getElementById("btnCloseLessonNotes").addEventListener("click", () => {
+  const m = document.getElementById("lessonNotesModal");
+  m.classList.add("hidden");
+  m.classList.remove("flex");
+});
+
+// Keyboard shortcuts in Player (respecting Strict Mode locks & ignoring text inputs!)
 document.addEventListener("keydown", e => {
   if (!session) return;
+  const tag = (document.activeElement && document.activeElement.tagName || "").toLowerCase();
+  if (tag === "input" || tag === "textarea") return;
   const step = session.queue[session.idx];
   if (!step) return;
   if (step.type === "mcq" && !session.answered && ["1","2","3","4"].includes(e.key)) {
