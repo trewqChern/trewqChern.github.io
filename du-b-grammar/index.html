@@ -53,11 +53,11 @@
     }
 
     @keyframes slideUp {
-      from { opacity: 0; transform: translateY(14px); }
+      from { opacity: 0.7; transform: translateY(6px); }
       to { opacity: 1; transform: translateY(0); }
     }
     .animate-slide-up {
-      animation: slideUp 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      animation: slideUp 0.14s ease-out forwards;
     }
 
     @keyframes popIn {
@@ -97,11 +97,17 @@
       }
     };
   </script>
+  <script>
+    try {
+      var _s = JSON.parse(localStorage.getItem('du_b_bangla_sololearn_v1') || '{}');
+      if (_s && _s.darkMode) document.documentElement.classList.add('dark');
+    } catch (e) {}
+  </script>
 </head>
-<body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 min-h-screen flex flex-col transition-colors duration-200">
+<body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 min-h-screen flex flex-col">
 
   <!-- TOP HEADER -->
-  <header class="sticky top-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur border-b border-slate-200 dark:border-slate-800 no-print">
+  <header class="sticky top-0 z-30 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 no-print">
     <div class="max-w-5xl mx-auto px-3 sm:px-5 h-14 flex items-center justify-between gap-2">
       <!-- Logo -->
       <button id="btn-home-logo" class="flex items-center gap-2.5 text-left group">
@@ -169,7 +175,7 @@
   </main>
 
   <!-- MOBILE BOTTOM NAVIGATION -->
-  <nav class="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur border-t border-slate-200 dark:border-slate-800 px-2 py-1.5 flex justify-around items-center no-print">
+  <nav class="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 px-2 py-1.5 flex justify-around items-center no-print">
     <button data-tab="learn" class="mobile-nav-tab flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl text-xs font-semibold">
       <i data-lucide="map" class="w-5 h-5"></i>
       <span>শিখুন</span>
@@ -223,13 +229,13 @@
     </div>
 
     <!-- Player Footer / Feedback Bar -->
-    <div id="player-footer" class="border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 sm:px-6 py-3.5 transition-colors">
+    <div id="player-footer" class="border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 sm:px-6 py-3.5">
       <!-- Dynamic Controls -->
     </div>
   </div>
 
   <!-- MODAL CONTAINER (Hearts / Settings / Confirmations) -->
-  <div id="modal-backdrop" class="hidden fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+  <div id="modal-backdrop" class="hidden fixed inset-0 z-50 bg-slate-950/70 flex items-center justify-center p-4">
     <div id="modal-content" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-md w-full p-5 shadow-2xl animate-pop">
       <!-- Modal content injected here -->
     </div>
@@ -1551,7 +1557,9 @@ function renderApp() {
   }
 
   attachMainListeners();
-  if (window.lucide) lucide.createIcons();
+  if (window.lucide) {
+    lucide.createIcons({ nodes: [document.getElementById('app-main')] });
+  }
 }
 
 // ============================================================================
@@ -1586,7 +1594,7 @@ function renderLearnView() {
             </button>
           </div>
         </div>
-        <div class="sm:w-56 bg-white/10 backdrop-blur rounded-xl p-3.5 border border-white/10">
+        <div class="sm:w-56 bg-white/10 rounded-xl p-3.5 border border-white/10">
           <div class="flex items-center justify-between text-xs font-semibold mb-1.5">
             <span class="text-slate-200">কোর্স অগ্রগতি</span>
             <span class="text-teal-300">${toBnNum(completedCount)} / ${toBnNum(totalLessons)} লেসন (${toBnNum(pct)}%)</span>
@@ -2511,6 +2519,11 @@ function closePlayerOverlay() {
 function renderPlayerStep() {
   if (!player) return;
 
+  const stepKey = player.finished ? 'done' : String(player.idx);
+  const isNewStep = player._lastRenderedStep !== stepKey;
+  player._lastRenderedStep = stepKey;
+  const animCls = isNewStep ? 'animate-slide-up' : '';
+
   const titleEl = document.getElementById('player-lesson-title');
   const counterEl = document.getElementById('player-step-counter');
   const barEl = document.getElementById('player-progress-bar');
@@ -2531,7 +2544,7 @@ function renderPlayerStep() {
       : null;
 
     bodyEl.innerHTML = `
-      <div class="max-w-lg mx-auto text-center py-6 animate-slide-up">
+      <div class="max-w-lg mx-auto text-center py-6 ${animCls}">
         <div class="w-20 h-20 mx-auto rounded-3xl bg-gradient-to-br from-emerald-400 to-teal-500 text-white flex items-center justify-center text-4xl shadow-lg mb-4">
           ${acc >= 80 ? '🏆' : acc >= 55 ? '🎉' : '💪'}
         </div>
@@ -2658,7 +2671,7 @@ function renderPlayerStep() {
   if (step.type === 'card') {
     const c = step.data;
     bodyEl.innerHTML = `
-      <div class="max-w-2xl mx-auto animate-slide-up">
+      <div class="max-w-2xl mx-auto ${animCls}">
         <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-7 shadow-sm">
           <span class="inline-block text-xs font-bold px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 mb-3">
             📖 ${c.badge}
@@ -2715,7 +2728,7 @@ function renderPlayerStep() {
     const isCorrect = player.checked && player.selectedOpt === q.ans;
 
     bodyEl.innerHTML = `
-      <div class="max-w-2xl mx-auto animate-slide-up">
+      <div class="max-w-2xl mx-auto ${animCls}">
         <div class="flex items-center justify-between gap-2 mb-3">
           <span class="text-xs font-bold px-2.5 py-1 rounded-full bg-teal-100 text-teal-700 dark:bg-teal-900/50 dark:text-teal-300">
             ⚡ MCQ অনুশীলন
@@ -2786,7 +2799,7 @@ function renderPlayerStep() {
           : 'bg-rose-50 dark:bg-rose-950/70 border-rose-200 dark:border-rose-800'
       }`;
       footerEl.innerHTML = `
-        <div class="max-w-2xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-slide-up">
+        <div class="max-w-2xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div class="flex-1">
             <div class="font-extrabold text-sm sm:text-base flex items-center gap-1.5 ${
               isCorrect ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'
@@ -2809,8 +2822,25 @@ function renderPlayerStep() {
     document.querySelectorAll('.player-opt-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         if (player.checked) return;
-        player.selectedOpt = Number(btn.dataset.optIdx);
-        renderPlayerStep();
+        const chosen = Number(btn.dataset.optIdx);
+        player.selectedOpt = chosen;
+        document.querySelectorAll('.player-opt-btn').forEach((b) => {
+          const idx = Number(b.dataset.optIdx);
+          const isSel = idx === chosen;
+          b.className = 'player-opt-btn w-full text-left p-4 rounded-2xl border-2 flex items-center gap-3.5 ' + (
+            isSel
+              ? 'border-blue-600 bg-blue-50 dark:bg-blue-950/40 ring-2 ring-blue-200 dark:ring-blue-900/60'
+              : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-blue-400'
+          );
+          const badge = b.querySelector('span');
+          if (badge) {
+            badge.className = 'w-8 h-8 rounded-xl flex items-center justify-center text-sm font-bold shrink-0 ' + (
+              isSel ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+            );
+          }
+        });
+        const chkBtn = document.getElementById('btn-check-ans');
+        if (chkBtn) chkBtn.disabled = false;
       });
     });
 
@@ -2831,7 +2861,7 @@ function renderPlayerStep() {
     document.getElementById('btn-player-continue')?.addEventListener('click', advancePlayerStep);
   }
 
-  if (window.lucide) lucide.createIcons();
+  if (window.lucide && isNewStep) lucide.createIcons({ nodes: [document.getElementById('player-body')] });
 }
 
 function checkCurrentMcq() {
@@ -3022,7 +3052,7 @@ function openAiLessonModal({ prefill = '', moduleHint = 'auto', sampleMistakes =
     </div>
   `;
 
-  if (window.lucide) lucide.createIcons();
+  if (window.lucide) lucide.createIcons({ nodes: [document.getElementById('modal-content')] });
 
   const close = () => {
     if (aiGenBusy) return;
@@ -3190,7 +3220,7 @@ function openHeartsModal() {
     </div>
   `;
 
-  if (window.lucide) lucide.createIcons();
+  if (window.lucide) lucide.createIcons({ nodes: [document.getElementById('modal-content')] });
 
   const close = () => backdrop.classList.add('hidden');
   document.getElementById('btn-close-modal')?.addEventListener('click', close);
@@ -3589,6 +3619,7 @@ function openPhoneOnboardingModal() {
 }
 
 // Boot App
+if (window.lucide) lucide.createIcons();
 renderApp();
 if (getSyncProfile()) {
   pullFromCloud(false);
