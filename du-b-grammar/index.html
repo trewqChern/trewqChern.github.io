@@ -129,6 +129,9 @@
           <i data-lucide="bookmark-check" class="w-4 h-4"></i> রিভিউ
           <span id="nav-mistake-badge" class="hidden text-[10px] px-1.5 py-0.2 rounded-full bg-rose-500 text-white font-bold">0</span>
         </button>
+        <button data-tab="chat" class="nav-tab px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-all flex items-center gap-1.5">
+          <i data-lucide="sparkles" class="w-4 h-4"></i> AI চ্যাট
+        </button>
         <button data-tab="notes" class="nav-tab px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-all flex items-center gap-1.5">
           <i data-lucide="book-open" class="w-4 h-4"></i> শর্টকাট
         </button>
@@ -180,7 +183,11 @@
       <span>রিভিউ</span>
       <span id="mobile-mistake-badge" class="hidden absolute top-0 right-1 text-[9px] px-1.5 rounded-full bg-rose-500 text-white font-bold">0</span>
     </button>
-    <button data-tab="notes" class="mobile-nav-tab flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl text-xs font-semibold">
+    <button data-tab="chat" class="mobile-nav-tab flex flex-col items-center gap-0.5 px-2.5 py-1 rounded-xl text-xs font-semibold">
+      <i data-lucide="sparkles" class="w-5 h-5"></i>
+      <span>AI চ্যাট</span>
+    </button>
+    <button data-tab="notes" class="mobile-nav-tab flex flex-col items-center gap-0.5 px-2.5 py-1 rounded-xl text-xs font-semibold">
       <i data-lucide="book-open" class="w-5 h-5"></i>
       <span>শর্টকাট</span>
     </button>
@@ -1090,6 +1097,10 @@ const MODULES = [
 ];
 
 const AI_LESSON_API = 'https://du-b-grammar-sync.treytrewq61.workers.dev/ai/generate-lesson';
+const AI_CHAT_API = 'https://du-b-grammar-sync.treytrewq61.workers.dev/ai/chat';
+const LOGS_API = 'https://du-b-grammar-sync.treytrewq61.workers.dev/logs';
+const LOGS_STORAGE_KEY = 'du_b_grammar_logs_v1';
+const SESSION_ID = 's_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
 
 // Tailored probable confusions suggested right after completing each lesson
 const LESSON_CONFUSIONS = {
@@ -1192,6 +1203,7 @@ const DEFAULT_STATE = {
   mistakes: [],          // array of mcq IDs
   bookmarks: [],         // array of mcq IDs
   customLessons: [],     // AI-generated confusion lessons synced via Cloudflare KV
+  aiChatHistory: [],     // Persistent AI tutor chat history
   reviewSubTab: 'mistakes',
   notesSearch: '',
   // Mock exam config & session
@@ -1302,6 +1314,72 @@ function setSyncPhone(rawPhone) {
   return normalized;
 }
 
+// ============================================================================
+// COMPREHENSIVE EVENT LOGGING (Local Ring Buffer + Cloudflare KV Batch Flush)
+// ============================================================================
+let pendingLogs = [];
+let logFlushTimer = null;
+
+function getLocalLogs() {
+  try {
+    const raw = localStorage.getItem(LOGS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function logEvent(type, data = {}, immediate = false) {
+  const entry = {
+    ts: Date.now(),
+    type: String(type || 'event'),
+    profile: getSyncProfile() || 'guest',
+    sessionId: SESSION_ID,
+    data: data && typeof data === 'object' ? data : {}
+  };
+  try {
+    const existing = getLocalLogs();
+    existing.unshift(entry);
+    localStorage.setItem(LOGS_STORAGE_KEY, JSON.stringify(existing.slice(0, 250)));
+  } catch (e) {}
+
+  pendingLogs.push(entry);
+  if (immediate || pendingLogs.length >= 8) {
+    flushLogs();
+  } else {
+    clearTimeout(logFlushTimer);
+    logFlushTimer = setTimeout(flushLogs, 2500);
+  }
+}
+
+async function flushLogs() {
+  clearTimeout(logFlushTimer);
+  if (pendingLogs.length === 0) return;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+  const batch = pendingLogs.splice(0, 25);
+  try {
+    await fetch(LOGS_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entries: batch }),
+      keepalive: true
+    });
+  } catch (e) {
+    // Re-queue up to 50 entries on transient failure
+    pendingLogs = [...batch, ...pendingLogs].slice(0, 50);
+  }
+}
+
+window.addEventListener('error', (ev) => {
+  logEvent('client_error', { msg: String(ev.message || 'error').slice(0, 180), line: ev.lineno || 0 });
+});
+window.addEventListener('unhandledrejection', (ev) => {
+  logEvent('client_error', { msg: String(ev.reason || 'rejection').slice(0, 180) });
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') flushLogs();
+});
+
 function getSyncPayload() {
   return {
     xp: state.xp,
@@ -1314,6 +1392,7 @@ function getSyncPayload() {
     mistakes: state.mistakes,
     bookmarks: state.bookmarks,
     customLessons: state.customLessons || [],
+    aiChatHistory: (state.aiChatHistory || []).slice(-30),
     updatedAt: state.updatedAt || Date.now()
   };
 }
@@ -1424,6 +1503,7 @@ async function pullFromCloud(showNotification = false) {
         state.mistakes = Array.isArray(rs.mistakes) ? rs.mistakes : state.mistakes;
         state.bookmarks = Array.isArray(rs.bookmarks) ? rs.bookmarks : state.bookmarks;
         state.customLessons = Array.isArray(rs.customLessons) ? rs.customLessons : (state.customLessons || []);
+        state.aiChatHistory = Array.isArray(rs.aiChatHistory) ? rs.aiChatHistory : (state.aiChatHistory || []);
         state.updatedAt = remoteTs;
         rebuildDynamicIndex();
         saveLocalOnly();
@@ -1532,6 +1612,8 @@ function renderApp() {
     main.innerHTML = renderMockView();
   } else if (state.tab === 'review') {
     main.innerHTML = renderReviewView();
+  } else if (state.tab === 'chat') {
+    main.innerHTML = renderChatView();
   } else if (state.tab === 'notes') {
     main.innerHTML = renderNotesView();
   }
@@ -2136,6 +2218,334 @@ const CHEAT_SHEETS = [
   }
 ];
 
+let aiChatBusy = false;
+let chatForceLesson = false;
+
+function formatChatText(txt) {
+  const esc = String(txt || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  return esc
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/`([^`]+)`/g, '<code class="px-1 py-0.5 rounded bg-slate-200/70 dark:bg-slate-800 text-xs font-mono">$1</code>')
+    .replace(/\n/g, '<br>');
+}
+
+const CHAT_STARTERS = [
+  'উপমান আর উপমিত কর্মধারয়ের পার্থক্য বুঝিয়ে দাও ও একটি লেসন বানাও',
+  'আমার ভুল প্রশ্নগুলো দেখে কোন টপিকে দুর্বলতা আছে বলো',
+  'যৌগিক ক্রিয়া বনাম মিশ্র ক্রিয়া নিয়ে ১২–১৫টি MCQ-সহ লেসন তৈরি করো',
+  'সন্ধি ও কারক থেকে DU B-Unit-এর সবচেয়ে কনফিউজিং নিয়মগুলো নিয়ে লেসন দাও'
+];
+
+function renderChatView() {
+  const history = Array.isArray(state.aiChatHistory) ? state.aiChatHistory : [];
+  return `
+    <div class="max-w-3xl mx-auto flex flex-col h-[calc(100vh-11rem)] md:h-[calc(100vh-8rem)] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+      <!-- Chat Header -->
+      <div class="px-4 py-3 bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white flex items-center justify-between gap-2 shrink-0">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-slate-950 flex items-center justify-center font-bold">
+            <i data-lucide="sparkles" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <div class="font-bold text-sm sm:text-base flex items-center gap-1.5">
+              DU B বাংলা AI টিউটর
+              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-400/20 text-amber-300 border border-amber-400/30">Gemini 3.8 Flash • High</span>
+            </div>
+            <div class="text-[11px] text-slate-300">যেকোনো ব্যাকরণ প্রশ্ন করুন বা সরাসরি নতুন লেসন + MCQ বানিয়ে নিন</div>
+          </div>
+        </div>
+        ${history.length > 0 ? `
+          <button id="btn-clear-chat" class="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-slate-200 transition">
+            চ্যাট মুছুন
+          </button>
+        ` : ''}
+      </div>
+
+      <!-- Messages Area -->
+      <div id="chat-messages-box" class="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/60 dark:bg-slate-950/40">
+        ${history.length === 0 ? `
+          <div class="text-center py-6 max-w-lg mx-auto">
+            <div class="text-4xl mb-2">✨</div>
+            <h2 class="font-extrabold text-base sm:text-lg text-slate-900 dark:text-white">আপনার ব্যাকরণ কনফিউশন নিয়ে কথা বলুন</h2>
+            <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 mb-5">
+              আমি ব্যাখ্যা দিতে পারি, উদাহরণ বিশ্লেষণ করতে পারি, এবং চাইলে সরাসরি <strong>নোট কার্ড + MCQ-সহ সম্পূর্ণ লেসন</strong> তৈরি করে আপনার কোর্সে যুক্ত করে দিতে পারি!
+            </p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-left">
+              ${CHAT_STARTERS.map((s) => `
+                <button data-chat-starter="${s.replace(/"/g, '&quot;')}" class="btn-chat-starter p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-blue-400 dark:hover:border-blue-500 text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200 transition shadow-sm">
+                  💬 ${s}
+                </button>
+              `).join('')}
+            </div>
+          </div>
+        ` : history.map((msg) => {
+          if (msg.role === 'user') {
+            return `
+              <div class="flex justify-end">
+                <div class="max-w-[85%] rounded-2xl rounded-tr-sm px-4 py-2.5 bg-blue-600 text-white text-sm leading-relaxed shadow-sm">
+                  ${formatChatText(msg.text)}
+                </div>
+              </div>
+            `;
+          }
+          const linkedLesson = msg.lessonId ? ALL_LESSONS.find((l) => l.id === msg.lessonId) : null;
+          return `
+            <div class="flex justify-start">
+              <div class="max-w-[92%] space-y-2.5">
+                <div class="rounded-2xl rounded-tl-sm px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm text-slate-800 dark:text-slate-100 leading-relaxed shadow-sm">
+                  ${formatChatText(msg.text)}
+                </div>
+                ${linkedLesson ? `
+                  <div class="rounded-2xl border-2 border-amber-300 dark:border-amber-700 bg-gradient-to-br from-amber-50 to-orange-50/70 dark:from-amber-950/40 dark:to-orange-950/20 p-3.5 shadow-sm">
+                    <div class="flex items-center justify-between gap-2 mb-1">
+                      <span class="text-[11px] font-extrabold text-amber-800 dark:text-amber-300">✨ নতুন AI লেসন যুক্ত হয়েছে (${linkedLesson.code})</span>
+                      <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">${toBnNum(linkedLesson.cards.length)}টি নোট • ${toBnNum(linkedLesson.mcqs.length)}টি MCQ</span>
+                    </div>
+                    <div class="font-bold text-sm sm:text-base text-slate-900 dark:text-white">${linkedLesson.title}</div>
+                    <p class="text-xs text-slate-600 dark:text-slate-400 mt-0.5 mb-3">${linkedLesson.subtitle}</p>
+                    <div class="flex flex-wrap gap-2">
+                      <button data-start-lesson="${linkedLesson.id}" data-mode="full" class="btn-start-lesson btn-3d px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-extrabold shadow-sm">
+                        ▶ এখনই শিখুন + MCQ
+                      </button>
+                      <button data-start-lesson="${linkedLesson.id}" data-mode="quiz" class="btn-start-lesson px-3 py-1.5 rounded-xl border border-amber-400 dark:border-amber-700 text-xs font-bold hover:bg-amber-100 dark:hover:bg-amber-900/40">
+                        শুধু MCQ
+                      </button>
+                    </div>
+                  </div>
+                ` : ''}
+                ${Array.isArray(msg.suggestedPrompts) && msg.suggestedPrompts.length > 0 ? `
+                  <div class="flex flex-wrap gap-1.5">
+                    ${msg.suggestedPrompts.map((sp) => `
+                      <button data-chat-starter="${sp.replace(/"/g, '&quot;')}" class="btn-chat-starter text-[11px] font-semibold px-2.5 py-1 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-blue-400 text-slate-700 dark:text-slate-200 transition">
+                        ✨ ${sp}
+                      </button>
+                    `).join('')}
+                  </div>
+                ` : ''}
+              </div>
+            </div>
+          `;
+        }).join('')}
+
+        ${aiChatBusy ? `
+          <div class="flex justify-start">
+            <div class="rounded-2xl rounded-tl-sm px-4 py-3 bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-800 text-xs sm:text-sm text-blue-700 dark:text-blue-300 flex items-center gap-2.5 shadow-sm">
+              <span class="inline-block w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin shrink-0"></span>
+              <span>Gemini 3.8 Flash (High) চিন্তা করছে${chatForceLesson ? ' ও নতুন লেসন তৈরি করছে' : ''}...</span>
+            </div>
+          </div>
+        ` : ''}
+      </div>
+
+      <!-- Composer -->
+      <div class="p-3 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shrink-0 space-y-2">
+        <div class="flex items-center justify-between gap-2">
+          <label class="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 dark:text-amber-400 cursor-pointer select-none">
+            <input id="chk-chat-force-lesson" type="checkbox" ${chatForceLesson ? 'checked' : ''} class="w-4 h-4 accent-amber-500 rounded" />
+            <span>✨ এই মেসেজ থেকেই সরাসরি নতুন লেসন + MCQ বানাও</span>
+          </label>
+          <span class="text-[11px] text-slate-400 hidden sm:inline">Enter পাঠান • Shift+Enter নতুন লাইন</span>
+        </div>
+        <div class="flex items-end gap-2">
+          <textarea id="input-chat-msg" rows="2" ${aiChatBusy ? 'disabled' : ''} placeholder="আপনার ব্যাকরণ কনফিউশন লিখুন (যেমন: নঞ তৎপুরুষ vs নঞ বহুব্রীহি নিয়ে লেসন বানাও)..." class="flex-1 px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"></textarea>
+          <button id="btn-send-chat" ${aiChatBusy ? 'disabled' : ''} class="btn-3d px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-sm shrink-0 flex items-center gap-1.5 shadow-sm">
+            <i data-lucide="send" class="w-4 h-4"></i>
+            <span class="hidden sm:inline">পাঠান</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function sendAiChatMessage(text, forceLessonOverride = null) {
+  const clean = String(text || '').trim();
+  if (!clean || aiChatBusy) return;
+  const shouldForce = forceLessonOverride !== null ? forceLessonOverride : chatForceLesson;
+
+  state.aiChatHistory = [...(state.aiChatHistory || []), { role: 'user', text: clean, ts: Date.now() }].slice(-30);
+  aiChatBusy = true;
+  saveLocalOnly();
+  renderApp();
+  const box = document.getElementById('chat-messages-box');
+  if (box) box.scrollTop = box.scrollHeight;
+
+  const t0 = Date.now();
+  const recentMistakes = (state.mistakes || [])
+    .map((id) => ALL_MCQS.find((q) => q.id === id)?.q)
+    .filter(Boolean)
+    .slice(0, 6);
+
+  try {
+    const resp = await fetch(AI_CHAT_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: state.aiChatHistory.slice(-10).map((m) => ({ role: m.role, text: m.text })),
+        forceLesson: shouldForce,
+        context: {
+          xp: state.xp,
+          completedCount: Object.keys(state.completedLessons || {}).length,
+          recentMistakes
+        }
+      })
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.ok) {
+      throw new Error(data.error || 'AI চ্যাট থেকে উত্তর পাওয়া যায়নি');
+    }
+
+    let createdLessonId = null;
+    if (data.lesson && Array.isArray(data.lesson.mcqs) && data.lesson.mcqs.length > 0) {
+      createdLessonId = 'ai_' + Date.now().toString(36);
+      const created = {
+        id: createdLessonId,
+        title: data.lesson.title,
+        subtitle: data.lesson.subtitle,
+        moduleId: data.lesson.moduleId || 'custom',
+        cards: data.lesson.cards || [],
+        mcqs: data.lesson.mcqs.map((m, i) => ({ ...m, id: `${createdLessonId}_q${i + 1}` })),
+        nextSuggestions: data.lesson.nextSuggestions || [],
+        createdAt: Date.now(),
+        model: data.model || 'gemini-3.8-flash'
+      };
+      state.customLessons = [created, ...(state.customLessons || [])];
+      rebuildDynamicIndex();
+      showToast(`চ্যাট থেকে নতুন AI লেসন তৈরি হয়েছে (${toBnNum(created.mcqs.length)}টি MCQ)!`);
+    }
+
+    state.aiChatHistory = [
+      ...state.aiChatHistory,
+      {
+        role: 'assistant',
+        text: data.reply || 'সম্পন্ন হয়েছে!',
+        lessonId: createdLessonId,
+        suggestedPrompts: data.suggestedPrompts || [],
+        ts: Date.now()
+      }
+    ].slice(-30);
+
+    chatForceLesson = false;
+    aiChatBusy = false;
+    saveState();
+    logEvent('ai_chat_message', {
+      promptPreview: clean.slice(0, 80),
+      createdLesson: !!createdLessonId,
+      forceLesson: shouldForce,
+      latencyMs: Date.now() - t0
+    }, true);
+    renderApp();
+    const box2 = document.getElementById('chat-messages-box');
+    if (box2) box2.scrollTop = box2.scrollHeight;
+  } catch (err) {
+    aiChatBusy = false;
+    state.aiChatHistory = [
+      ...state.aiChatHistory,
+      { role: 'assistant', text: '⚠️ ' + (err.message || 'সংযোগ সমস্যা হয়েছে। আবার চেষ্টা করুন।'), ts: Date.now() }
+    ].slice(-30);
+    saveLocalOnly();
+    logEvent('ai_chat_error', { error: String(err.message || err).slice(0, 140), latencyMs: Date.now() - t0 }, true);
+    renderApp();
+  }
+}
+
+async function openLogsModal(scope = 'local') {
+  const backdrop = document.getElementById('modal-backdrop');
+  const content = document.getElementById('modal-content');
+  backdrop.classList.remove('hidden');
+
+  content.innerHTML = `
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="text-base sm:text-lg font-extrabold flex items-center gap-2">
+        📊 অ্যাক্টিভিটি লগ (Activity Logs)
+      </h3>
+      <button id="btn-close-logs" class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+    </div>
+
+    <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+      <div class="flex gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs font-bold">
+        <button data-log-scope="local" class="btn-log-scope px-2.5 py-1 rounded-lg ${scope === 'local' ? 'bg-white dark:bg-slate-900 text-blue-600 shadow-sm' : 'text-slate-500'}">লোকাল</button>
+        <button data-log-scope="mine" class="btn-log-scope px-2.5 py-1 rounded-lg ${scope === 'mine' ? 'bg-white dark:bg-slate-900 text-blue-600 shadow-sm' : 'text-slate-500'}">আমার ক্লাউড</button>
+        <button data-log-scope="global" class="btn-log-scope px-2.5 py-1 rounded-lg ${scope === 'global' ? 'bg-white dark:bg-slate-900 text-blue-600 shadow-sm' : 'text-slate-500'}">সব ভিজিটর</button>
+      </div>
+      <button id="btn-copy-logs" class="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline">JSON কপি</button>
+    </div>
+
+    <div id="logs-list-box" class="max-h-72 overflow-y-auto space-y-1.5 text-xs font-mono bg-slate-50 dark:bg-slate-950 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800">
+      <div class="text-center py-6 text-slate-400">লগ লোড হচ্ছে...</div>
+    </div>
+
+    <div class="mt-3 flex justify-end">
+      <button id="btn-logs-done" class="px-4 py-1.5 rounded-xl bg-slate-900 dark:bg-slate-800 text-white text-xs font-bold">বন্ধ করুন</button>
+    </div>
+  `;
+
+  if (window.lucide) lucide.createIcons();
+  const close = () => backdrop.classList.add('hidden');
+  document.getElementById('btn-close-logs')?.addEventListener('click', close);
+  document.getElementById('btn-logs-done')?.addEventListener('click', close);
+  document.querySelectorAll('.btn-log-scope').forEach((b) => {
+    b.addEventListener('click', () => openLogsModal(b.dataset.logScope));
+  });
+
+  let logs = [];
+  if (scope === 'local') {
+    logs = getLocalLogs();
+  } else {
+    try {
+      await flushLogs();
+      const q = scope === 'mine' && getSyncProfile() ? `?profile=${encodeURIComponent(getSyncProfile())}&limit=100` : '?limit=100';
+      const r = await fetch(LOGS_API + q);
+      const d = await r.json();
+      if (d && d.ok && Array.isArray(d.logs)) logs = d.logs;
+    } catch (e) {
+      logs = [];
+    }
+  }
+
+  const listEl = document.getElementById('logs-list-box');
+  if (listEl) {
+    if (logs.length === 0) {
+      listEl.innerHTML = '<div class="text-center py-6 text-slate-400">কোনো লগ পাওয়া যায়নি</div>';
+    } else {
+      listEl.innerHTML = logs.slice(0, 80).map((item) => {
+        const dt = new Date(item.ts || Date.now());
+        const tStr = dt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const dStr = Object.keys(item.data || {}).length > 0 ? JSON.stringify(item.data) : '';
+        return `
+          <div class="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800">
+            <div class="flex items-center justify-between gap-2">
+              <span class="font-bold text-blue-600 dark:text-blue-400">${item.type}</span>
+              <span class="text-[10px] text-slate-400">${tStr} • ${formatProfileDisplay(item.profile)}</span>
+            </div>
+            ${dStr ? `<div class="text-[10px] text-slate-600 dark:text-slate-400 mt-0.5 break-all">${dStr.replace(/</g, '&lt;')}</div>` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+  }
+
+  document.getElementById('btn-copy-logs')?.addEventListener('click', () => {
+    const str = JSON.stringify(logs, null, 2);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(str).then(() => showToast('লগ JSON কপি হয়েছে!')).catch(() => {});
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = str;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+      showToast('লগ JSON কপি হয়েছে!');
+    }
+  });
+}
+
 function renderNotesView() {
   const q = state.notesSearch.trim().toLowerCase();
   return `
@@ -2226,6 +2636,7 @@ function startLessonPlayer(lessonId, mode = 'full') {
     finished: false
   };
 
+  logEvent('lesson_start', { lessonId: les.id, mode, mcqs: les.mcqs.length });
   openPlayerOverlay();
 }
 
@@ -2650,6 +3061,7 @@ function advancePlayerStep() {
       state.xp += 20;
     }
     saveState();
+    logEvent('lesson_complete', { lessonId: player.lessonId || player.sourceType, acc, correct: player.correctCount, total: player.mcqTotal, xp: player.xpEarned }, true);
     updateHeaderStats();
     renderPlayerStep();
     if (acc >= 70 && typeof confetti === 'function') {
@@ -2670,6 +3082,7 @@ function startMockExam() {
   const selected = shuffled.slice(0, Math.min(cfg.count, shuffled.length));
 
   clearInterval(mockTimerInterval);
+  logEvent('mock_start', { count: selected.length, modules: cfg.modules, neg: cfg.negativeMarking, timer: cfg.useTimer });
   state.mockSession = {
     questions: selected,
     idx: 0,
@@ -2718,6 +3131,7 @@ function finishMockExam() {
   });
   state.xp += correct * 10;
   saveState();
+  logEvent('mock_complete', { correct, total: state.mockSession.questions.length, neg: state.mockSession.negativeMarking }, true);
   renderApp();
 
   if (correct / state.mockSession.questions.length >= 0.7 && typeof confetti === 'function') {
@@ -2747,7 +3161,7 @@ function openAiLessonModal({ prefill = '', moduleHint = 'auto', sampleMistakes =
     </div>
 
     <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">
-      যেকোনো বাংলা ব্যাকরণের কনফিউশন লিখুন — <strong>Gemini 3.8 Flash (Medium)</strong> তুলনামূলক নোট কার্ড ও প্রয়োজন অনুযায়ী পর্যাপ্ত DU B-Unit MCQ তৈরি করে আপনার কোর্সে যুক্ত করবে।
+      যেকোনো বাংলা ব্যাকরণের কনফিউশন লিখুন — <strong>Gemini 3.8 Flash (High)</strong> তুলনামূলক নোট কার্ড ও প্রয়োজন অনুযায়ী পর্যাপ্ত DU B-Unit MCQ তৈরি করে আপনার কোর্সে যুক্ত করবে।
     </p>
 
     <div class="space-y-3">
@@ -2830,7 +3244,7 @@ async function runAiLessonGeneration(confusion, moduleHint, sampleMistakes) {
 
   if (statusEl) {
     statusEl.className = 'p-3.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 text-xs sm:text-sm text-blue-800 dark:text-blue-200 flex items-center gap-2.5';
-    statusEl.innerHTML = `<span class="inline-block w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin shrink-0"></span><span><strong>Gemini 3.8 Flash (Medium)</strong> আপনার কনফিউশন বিশ্লেষণ করে নোট কার্ড ও পর্যাপ্ত MCQ তৈরি করছে... (১৫–৩০ সেকেন্ড লাগতে পারে)</span>`;
+    statusEl.innerHTML = `<span class="inline-block w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin shrink-0"></span><span><strong>Gemini 3.8 Flash (High)</strong> আপনার কনফিউশন বিশ্লেষণ করে নোট কার্ড ও পর্যাপ্ত MCQ তৈরি করছে... (১৫–৩০ সেকেন্ড লাগতে পারে)</span>`;
   }
 
   try {
@@ -2860,6 +3274,7 @@ async function runAiLessonGeneration(confusion, moduleHint, sampleMistakes) {
     state.customLessons = [created, ...(state.customLessons || [])];
     rebuildDynamicIndex();
     saveState();
+    logEvent('ai_lesson_generate', { confusion: confusion.slice(0, 80), mcqs: created.mcqs.length, model: created.model }, true);
 
     aiGenBusy = false;
     document.getElementById('modal-backdrop').classList.add('hidden');
@@ -2944,8 +3359,11 @@ function openHeartsModal() {
       </div>
     </div>
 
-    <div class="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
-      <button id="btn-reset-progress" class="text-xs font-semibold text-rose-600 hover:underline">সব অগ্রগতি রিসেট করুন</button>
+    <div class="pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+      <div class="flex items-center gap-3">
+        <button id="btn-open-logs" class="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline">📊 অ্যাক্টিভিটি লগ</button>
+        <button id="btn-reset-progress" class="text-xs font-semibold text-rose-600 hover:underline">রিসেট</button>
+      </div>
       <button id="btn-modal-done" class="px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-bold">ঠিক আছে</button>
     </div>
   `;
@@ -2955,6 +3373,7 @@ function openHeartsModal() {
   const close = () => backdrop.classList.add('hidden');
   document.getElementById('btn-close-modal')?.addEventListener('click', close);
   document.getElementById('btn-modal-done')?.addEventListener('click', close);
+  document.getElementById('btn-open-logs')?.addEventListener('click', () => openLogsModal('local'));
 
   document.getElementById('chk-unlimited-hearts')?.addEventListener('change', (e) => {
     state.unlimitedHearts = e.target.checked;
@@ -3210,12 +3629,43 @@ function attachMainListeners() {
   }
 
   document.getElementById('btn-print-notes')?.addEventListener('click', () => window.print());
+
+  // AI Chat View listeners
+  document.querySelectorAll('.btn-chat-starter').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      sendAiChatMessage(btn.dataset.chatStarter);
+    });
+  });
+
+  document.getElementById('chk-chat-force-lesson')?.addEventListener('change', (e) => {
+    chatForceLesson = e.target.checked;
+  });
+
+  document.getElementById('btn-send-chat')?.addEventListener('click', () => {
+    const val = document.getElementById('input-chat-msg')?.value || '';
+    sendAiChatMessage(val);
+  });
+
+  document.getElementById('input-chat-msg')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendAiChatMessage(e.currentTarget.value);
+    }
+  });
+
+  document.getElementById('btn-clear-chat')?.addEventListener('click', () => {
+    state.aiChatHistory = [];
+    saveState();
+    logEvent('ai_chat_cleared', {});
+    renderApp();
+  });
 }
 
 // Global Static Listeners
 document.querySelectorAll('[data-tab]').forEach((btn) => {
   btn.addEventListener('click', () => {
     state.tab = btn.dataset.tab;
+    logEvent('tab_switch', { tab: state.tab });
     renderApp();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   });
@@ -3308,12 +3758,14 @@ function openPhoneOnboardingModal() {
       return;
     }
     backdrop.classList.add('hidden');
+    logEvent('phone_linked', { profile: norm }, true);
     showToast(`নম্বর ${formatProfileDisplay(norm)} যুক্ত হয়েছে!`);
     await pullFromCloud(true);
   });
 
   document.getElementById('btn-skip-phone')?.addEventListener('click', () => {
     try { localStorage.setItem(SYNC_SKIP_KEY, '1'); } catch (e) {}
+    logEvent('phone_skipped', {});
     backdrop.classList.add('hidden');
     updateSyncBadge('unlinked');
   });
@@ -3321,6 +3773,7 @@ function openPhoneOnboardingModal() {
 
 // Boot App
 renderApp();
+logEvent('app_open', { w: window.innerWidth, h: window.innerHeight, dark: !!state.darkMode, online: navigator.onLine !== false });
 if (getSyncProfile()) {
   pullFromCloud(false);
 } else {
