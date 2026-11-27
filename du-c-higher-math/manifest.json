@@ -1,0 +1,26 @@
+{
+  "name": "DU-C উচ্চতর গণিত মাস্টার (২০২৬–২৭)",
+  "short_name": "DU-C গণিত",
+  "description": "ঢাবি গ-ইউনিট বিভাগ পরিবর্তন উচ্চতর গণিত — ২৫ অধ্যায়, ২২৪ মাইক্রো-কার্ড, ৮৫০+ MCQ, ৯৪ বিগত প্রশ্ন ও স্ট্রিক্ট লার্নিং মোড (অফলাইন PWA)",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#07090f",
+  "theme_color": "#07090f",
+  "lang": "bn",
+  "icons": [
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
