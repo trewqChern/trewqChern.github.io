@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>DU-C উচ্চতর গণিত মাস্টার | বিভাগ পরিবর্তন (২০২৬–২৭)</title>
+<meta name="theme-color" content="#07090f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="DU-C গণিত">
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -104,6 +110,7 @@ tailwind.config = {
       <div class="px-2 py-1 rounded-full text-xs font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30 hidden sm:flex items-center gap-1">
         <span>⚡</span><span id="hdrXp">0 XP</span>
       </div>
+      <button id="btnPwaInstall" class="hidden px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30 transition">📲 ইনস্টল</button>
       <button id="btnSyncPill" class="px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-500/25 transition max-w-[115px] truncate"></button>
       <button id="btnTheme" class="p-1.5 rounded-lg glass-2 hover:opacity-80 transition" title="থিম বদলান" aria-label="থিম বদলান">
         <i data-lucide="sun" class="w-4 h-4"></i>
@@ -2863,7 +2870,37 @@ window.addEventListener("online", () => { if (syncProfile) pullFromCloud(); });
 window.addEventListener("pagehide", () => { if (session && session.kind === "lesson") saveLessonProgressSnapshot(true); });
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden" && session && session.kind === "lesson") saveLessonProgressSnapshot(true); });
 
+let deferredPwaPrompt = null;
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  deferredPwaPrompt = e;
+  const ib = document.getElementById("btnPwaInstall");
+  if (ib) ib.classList.remove("hidden");
+});
+window.addEventListener("appinstalled", () => {
+  deferredPwaPrompt = null;
+  const ib = document.getElementById("btnPwaInstall");
+  if (ib) ib.classList.add("hidden");
+  showToast("📲 অ্যাপটি অফলাইন PWA হিসেবে ইনস্টল হয়েছে!");
+});
+window.addEventListener("offline", () => {
+  syncStatus = "offline";
+  updateSyncPill();
+  showToast("অফলাইন মোড — সব লেসন, সূত্র ও মক টেস্ট অফলাইনেই চলবে");
+});
+
 window.addEventListener("DOMContentLoaded", () => {
+  const ib = document.getElementById("btnPwaInstall");
+  if (ib) ib.addEventListener("click", async () => {
+    if (!deferredPwaPrompt) return;
+    deferredPwaPrompt.prompt();
+    try { await deferredPwaPrompt.userChoice; } catch (e) {}
+    deferredPwaPrompt = null;
+    ib.classList.add("hidden");
+  });
+  if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
+    navigator.serviceWorker.register("./sw.js").catch(() => {});
+  }
   rebuildIndex();
   applyTheme();
   renderAll();
