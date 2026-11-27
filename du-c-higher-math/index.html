@@ -230,6 +230,7 @@ const DEFAULT_STATE = {
   darkMode: true,
   completedLessons: {},   // { lessonId: { bestAcc, passed, attempts, xp } }
   bossPassed: {},         // { moduleId: { bestAcc, passed } }
+  lessonMocks: {},        // { lessonId: { bestScore, bestPct, passed, attempts } }
   mistakes: [],           // array of base mcqId
   bookmarks: [],          // array of base mcqId
   writtenDone: {},        // { drillId: true }
@@ -468,11 +469,15 @@ function renderNav() {
   });
 }
 
+function isLessonPassed(lessonId) {
+  return Boolean((state.lessonMocks && state.lessonMocks[lessonId]?.passed) || (state.completedLessons && state.completedLessons[lessonId]?.passed));
+}
+
 function isLessonUnlocked(modIdx, lessonIdx, lesson) {
   if (!state.strictMode || state.unlockAll) return true;
   if (lessonIdx === 0) return true;
   const prev = CURRICULUM.modules[modIdx].lessons[lessonIdx - 1];
-  return Boolean(state.completedLessons[prev.id]?.passed);
+  return isLessonPassed(prev.id);
 }
 
 function getRank(xp) {
@@ -484,7 +489,7 @@ function getRank(xp) {
 
 function renderLearnTab() {
   const totalLessons = CURRICULUM.modules.reduce((a, m) => a + m.lessons.length, 0);
-  const passedCount = Object.values(state.completedLessons).filter(x => x.passed).length;
+  const passedCount = CURRICULUM.modules.reduce((a, m) => a + m.lessons.filter(l => isLessonPassed(l.id)).length, 0);
   const pct = Math.round((passedCount / totalLessons) * 100);
   const totalCards = CURRICULUM.modules.reduce((a, m) => a + m.lessons.reduce((b, l) => b + l.cards.length, 0), 0);
   const totalMcqs = CURRICULUM.modules.reduce((a, m) => a + m.lessons.reduce((b, l) => b + l.mcqs.length, 0), 0);
@@ -515,7 +520,7 @@ function renderLearnTab() {
       ${state.strictMode ? `
       <div class="mt-3 flex flex-wrap gap-2 text-[11px] text-slate-300">
         <span class="px-2 py-0.5 rounded-md glass-2">⏱️ ৫ সে. অ্যাক্টিভ-রিড গেট</span>
-        <span class="px-2 py-0.5 rounded-md glass-2">🎯 ≥৭৫% লেসন / ≥৮০% বস কুইজ পাস</span>
+        <span class="px-2 py-0.5 rounded-md glass-2">🏆 লেসন ফাইনাল মক (১০ প্রশ্ন, -০.২৫) ≥৭.৫/১০ পাস</span>
         <span class="px-2 py-0.5 rounded-md glass-2">🔄 গাণিতিক ভুলে নতুন মান + স্লাইড রিডাইরেক্ট</span>
         <span class="px-2 py-0.5 rounded-md glass-2">🧠 কনসেপ্ট ভুলে ২ ধাপ পর ভিন্ন কোণে যাচাই</span>
       </div>` : ''}
@@ -595,9 +600,13 @@ function renderLearnTab() {
                       <span class="px-2 py-0.5 rounded-full text-[10px] font-bold border ${tierBadge}">Tier ${lesson.tier}</span>
                       <span class="text-[11px] text-slate-400">${escHtml(lesson.paperRef)}</span>
                     </div>
-                    ${prog?.passed
-                      ? `<span class="text-[11px] font-bold text-emerald-400">✅ ${prog.bestAcc}%</span>`
-                      : (!unlocked ? `<span class="text-[11px] text-slate-400">🔒 লকড</span>` : `<span class="text-[11px] text-slate-400">⏱️ ${lesson.estMinutes} মি.</span>`)}
+                    ${(() => {
+                      const lm = state.lessonMocks && state.lessonMocks[lesson.id];
+                      if (lm?.passed) return `<span class="text-[11px] font-bold text-emerald-400">🏆 মক পাস (${lm.bestScore}/10)</span>`;
+                      if (prog?.learned || prog?.passed) return `<span class="text-[11px] font-bold text-amber-400">📘 শেখা শেষ • মক বাকি</span>`;
+                      if (!unlocked) return `<span class="text-[11px] text-slate-400">🔒 লকড</span>`;
+                      return `<span class="text-[11px] text-slate-400">⏱️ ${lesson.estMinutes} মি.</span>`;
+                    })()}
                   </div>
                   <h3 class="font-bold text-base leading-snug">${escHtml(lesson.title)}</h3>
                   <p class="text-xs text-slate-400 mt-1 line-clamp-2">${escHtml(lesson.subtitle)}</p>
@@ -633,12 +642,15 @@ function renderLearnTab() {
                       </div>
                     </div>`;
                 })()}
-                <div class="flex items-center gap-2 pt-1">
+                <div class="flex items-center gap-1.5 pt-1">
                   <button data-play-lesson="${lesson.id}" data-mode="full" ${!unlocked ? 'disabled' : ''} class="play-btn flex-1 py-2 rounded-xl text-xs font-bold transition ${unlocked ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}">
-                    ${!unlocked ? 'আগের লেসন ≥৭৫% পাস করো' : ((state.lessonProgress && state.lessonProgress[lesson.id + ':full'] && state.lessonProgress[lesson.id + ':full'].idx > 0) ? '▶️ চালিয়ে যাও (শেখা + MCQ)' : 'শেখা + MCQ')}
+                    ${!unlocked ? 'আগের ফাইনাল মক ≥৭.৫ পাস করো' : ((state.lessonProgress && state.lessonProgress[lesson.id + ':full'] && state.lessonProgress[lesson.id + ':full'].idx > 0) ? '▶️ চালিয়ে যাও' : 'শেখা + MCQ')}
                   </button>
-                  <button data-play-lesson="${lesson.id}" data-mode="quiz" ${!unlocked ? 'disabled' : ''} class="play-btn px-3 py-2 rounded-xl text-xs font-semibold transition ${unlocked ? 'glass-2 hover:bg-slate-700/60' : 'bg-slate-800/50 text-slate-600 cursor-not-allowed'}">
-                    ${(state.lessonProgress && state.lessonProgress[lesson.id + ':quiz'] && state.lessonProgress[lesson.id + ':quiz'].idx > 0) ? '▶️ কুইজ' : 'কুইজ'}
+                  <button data-final-mock="${lesson.id}" ${!unlocked ? 'disabled' : ''} class="final-mock-btn px-3 py-2 rounded-xl text-xs font-bold transition ${unlocked ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40' : 'bg-slate-800/50 text-slate-600 cursor-not-allowed'}" title="১০ প্রশ্নের ফাইনাল মক (-০.২৫ নেগেটিভ, পাস ≥৭.৫)">
+                    🏆 মক (১০)
+                  </button>
+                  <button data-play-lesson="${lesson.id}" data-mode="quiz" ${!unlocked ? 'disabled' : ''} class="play-btn px-2.5 py-2 rounded-xl text-xs font-semibold transition ${unlocked ? 'glass-2 hover:bg-slate-700/60' : 'bg-slate-800/50 text-slate-600 cursor-not-allowed'}">
+                    কুইজ
                   </button>
                 </div>
               </div>
@@ -684,6 +696,9 @@ function renderLearnTab() {
   }));
   document.querySelectorAll(".boss-btn").forEach(b => b.addEventListener("click", () => {
     startBossQuiz(b.dataset.bossMod);
+  }));
+  document.querySelectorAll(".final-mock-btn").forEach(b => b.addEventListener("click", () => {
+    startLessonFinalMock(b.dataset.finalMock);
   }));
   document.querySelectorAll(".del-ai-btn").forEach(b => b.addEventListener("click", () => {
     state.customLessons = state.customLessons.filter(x => x.id !== b.dataset.delAi);
@@ -824,6 +839,7 @@ function startLessonSession(lessonId, mode = "full") {
         selectedOpt: null,
         slideGateLeft: 0,
         understoodChecked: false,
+        readCardIds: new Set(),
         cooldownLeft: 0
       };
       showToast(`📌 ধাপ ${saved.idx + 1}/${hydrated.length} থেকে আবার শুরু হলো`);
@@ -900,10 +916,230 @@ function startLessonSession(lessonId, mode = "full") {
     selectedOpt: null,
     slideGateLeft: 0,
     understoodChecked: false,
+    readCardIds: new Set(),
     cooldownLeft: 0
   };
   saveLessonProgressSnapshot(false);
   openPlayer();
+}
+
+
+/* ==================== 10-QUESTION LESSON FINAL MOCK TEST ==================== */
+let lessonMock = null;
+let lessonMockTimerInt = null;
+
+function startLessonFinalMock(lessonId) {
+  const lesson = LESSON_MAP[lessonId];
+  if (!lesson) return;
+  clearPlayerTimers();
+  clearInterval(lessonMockTimerInt);
+
+  const allMcqs = shuffleArr(lesson.mcqs || []);
+  const picked = allMcqs.slice(0, Math.min(10, allMcqs.length)).map(q => {
+    let chosen = q;
+    if (q.qType === "numerical" && Array.isArray(q.variants) && q.variants.length) {
+      const v = q.variants[Math.floor(Math.random() * q.variants.length)];
+      chosen = { ...q, q: v.q, opts: v.opts, ans: v.ans, exp: v.exp };
+    }
+    return { baseId: q.id, mcq: chosen, display: makeShuffledOptionOrder(chosen) };
+  });
+
+  lessonMock = {
+    lessonId,
+    title: `🏆 ফাইনাল মক (১০ প্রশ্ন) — ${lesson.title}`,
+    questions: picked,
+    answers: {},
+    curIdx: 0,
+    neg: 0.25,
+    timeLeft: 8 * 60,
+    submitted: false
+  };
+
+  session = null;
+  const ov = document.getElementById("playerOverlay");
+  ov.classList.remove("hidden");
+  ov.classList.add("flex");
+  closeLessonAiDrawer();
+  const aiFab = document.getElementById("btnLessonAiFab");
+  if (aiFab) aiFab.classList.add("hidden");
+
+  const bossBadge = document.getElementById("bossTimerBadge");
+  bossBadge.classList.remove("hidden");
+  lessonMockTimerInt = setInterval(() => {
+    if (!lessonMock || lessonMock.submitted) { clearInterval(lessonMockTimerInt); return; }
+    lessonMock.timeLeft--;
+    const mm = String(Math.floor(Math.max(0, lessonMock.timeLeft) / 60)).padStart(2, "0");
+    const ss = String(Math.max(0, lessonMock.timeLeft) % 60).padStart(2, "0");
+    bossBadge.textContent = `${mm}:${ss}`;
+    if (lessonMock.timeLeft <= 0) submitLessonFinalMock();
+  }, 1000);
+
+  renderLessonFinalMock();
+}
+
+function renderLessonFinalMock() {
+  if (!lessonMock) return;
+  const bossBadge = document.getElementById("bossTimerBadge");
+  const mm = String(Math.floor(Math.max(0, lessonMock.timeLeft) / 60)).padStart(2, "0");
+  const ss = String(Math.max(0, lessonMock.timeLeft) % 60).padStart(2, "0");
+  bossBadge.textContent = `${mm}:${ss}`;
+
+  document.getElementById("playerTitle").textContent = lessonMock.title;
+  document.getElementById("playerStepCount").textContent = lessonMock.submitted
+    ? "ফলাফল"
+    : `${lessonMock.curIdx + 1} / ${lessonMock.questions.length}`;
+  const answeredCnt = Object.keys(lessonMock.answers).length;
+  document.getElementById("playerProgressBar").style.width = `${Math.round((answeredCnt / lessonMock.questions.length) * 100)}%`;
+  document.getElementById("playerHearts").textContent = "∞";
+
+  const body = document.getElementById("playerBody");
+  const footer = document.getElementById("playerFooter");
+
+  if (lessonMock.submitted) {
+    bossBadge.classList.add("hidden");
+    let correct = 0, wrong = 0, skipped = 0;
+    lessonMock.questions.forEach((item, i) => {
+      const p = lessonMock.answers[i];
+      if (p == null) skipped++;
+      else if (p === item.display.ans) correct++;
+      else wrong++;
+    });
+    const rawScore = correct - wrong * lessonMock.neg;
+    const scoreStr = rawScore.toFixed(2);
+    const total = lessonMock.questions.length;
+    const passTarget = +(total * 0.75).toFixed(2);
+    const passed = rawScore >= passTarget;
+
+    body.innerHTML = `
+      <div class="max-w-2xl mx-auto space-y-4">
+        <div class="glass rounded-2xl p-6 text-center space-y-3 border ${passed ? 'border-emerald-500/40' : 'border-rose-500/40'}">
+          <div class="text-5xl">${passed ? '🏆' : '📝'}</div>
+          <h2 class="text-2xl font-extrabold">${passed ? 'ফাইনাল মক পাস! পরের অধ্যায় আনলক হয়েছে' : 'পাস মার্ক পূর্ণ হয়নি — আবার চেষ্টা করো'}</h2>
+          <div class="text-3xl font-extrabold ${passed ? 'text-emerald-400' : 'text-amber-400'}">${scoreStr} / ${total}</div>
+          <div class="flex flex-wrap justify-center gap-3 text-xs font-bold">
+            <span class="text-emerald-400">✅ সঠিক: ${correct}</span>
+            <span class="text-rose-400">❌ ভুল: ${wrong} (-${(wrong * lessonMock.neg).toFixed(2)})</span>
+            <span class="text-slate-400">⏭️ বাদ: ${skipped}</span>
+            <span class="text-sky-400">🎯 পাস মার্ক: ≥${passTarget} (৭৫%)</span>
+          </div>
+        </div>
+        <div class="space-y-3">
+          ${lessonMock.questions.map((item, i) => {
+            const p = lessonMock.answers[i];
+            const ok = p === item.display.ans;
+            return `
+              <div class="glass rounded-xl p-4 space-y-1.5 border-l-4 ${p == null ? 'border-l-slate-500' : (ok ? 'border-l-emerald-500' : 'border-l-rose-500')}">
+                <div class="text-sm font-bold">${i + 1}. ${escHtml(item.mcq.q)}</div>
+                <div class="text-xs text-emerald-400 font-semibold">সঠিক উত্তর: ${escHtml(item.display.opts[item.display.ans])}</div>
+                ${p != null && !ok ? `<div class="text-xs text-rose-400">তোমার উত্তর: ${escHtml(item.display.opts[p])}</div>` : ''}
+                <div class="text-xs text-slate-300 pt-1">${escHtml(item.mcq.exp)}</div>
+              </div>
+            `;
+          }).join("")}
+        </div>
+      </div>
+    `;
+    footer.innerHTML = `
+      <div class="max-w-2xl mx-auto flex items-center gap-2">
+        <button id="btnRetryLessonMock" class="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-sm">🔄 নতুন সেটে আবার মক দাও</button>
+        <button id="btnExitLessonMock" class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm">শেখার পথ</button>
+      </div>
+    `;
+    document.getElementById("btnRetryLessonMock").addEventListener("click", () => startLessonFinalMock(lessonMock.lessonId));
+    document.getElementById("btnExitLessonMock").addEventListener("click", closePlayer);
+    renderMath(body);
+    return;
+  }
+
+  const cur = lessonMock.questions[lessonMock.curIdx];
+  const picked = lessonMock.answers[lessonMock.curIdx];
+  body.innerHTML = `
+    <div class="max-w-2xl mx-auto space-y-4">
+      <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+        ${lessonMock.questions.map((_, i) => `
+          <button data-lmjump="${i}" class="lm-jump w-8 h-8 rounded-lg text-xs font-bold shrink-0 border ${i === lessonMock.curIdx ? 'border-amber-400 bg-amber-500/20 text-amber-300' : (lessonMock.answers[i] != null ? 'bg-emerald-600/25 border-emerald-500/40 text-emerald-300' : 'glass-2 text-slate-400')}">${i + 1}</button>
+        `).join("")}
+      </div>
+
+      <div class="glass rounded-2xl p-4 sm:p-6 space-y-4">
+        <div class="flex items-center justify-between text-xs text-slate-400">
+          <span class="font-bold text-amber-300">🏆 ফাইনাল মক • প্রশ্ন ${lessonMock.curIdx + 1}/${lessonMock.questions.length}</span>
+          <span>নেগেটিভ: -০.২৫ | পাস: ≥৭.৫/১০</span>
+        </div>
+        <div class="text-base sm:text-lg font-bold leading-relaxed">${escHtml(cur.mcq.q)}</div>
+        <div class="space-y-2.5">
+          ${cur.display.opts.map((opt, i) => `
+            <button data-lmopt="${i}" class="lm-opt w-full text-left p-3.5 rounded-xl border transition flex items-start gap-3 ${picked === i ? 'bg-indigo-600/25 border-indigo-400 text-white' : 'glass-2 hover:border-slate-500'}">
+              <span class="w-6 h-6 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">${["ক","খ","গ","ঘ"][i]}</span>
+              <span class="text-sm sm:text-base leading-snug">${escHtml(opt)}</span>
+            </button>
+          `).join("")}
+        </div>
+      </div>
+    </div>
+  `;
+
+  footer.innerHTML = `
+    <div class="max-w-2xl mx-auto flex items-center justify-between gap-2">
+      <div class="flex items-center gap-2">
+        <button id="btnLmPrev" ${lessonMock.curIdx === 0 ? 'disabled' : ''} class="px-3.5 py-2.5 rounded-xl glass-2 text-xs font-bold disabled:opacity-40">← আগের</button>
+        <button id="btnLmClear" class="px-3 py-2.5 rounded-xl text-xs text-slate-400 hover:text-rose-400">মুছুন</button>
+      </div>
+      <div class="flex items-center gap-2">
+        ${lessonMock.curIdx < lessonMock.questions.length - 1
+          ? `<button id="btnLmNext" class="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold">পরের →</button>`
+          : ''}
+        <button id="btnLmSubmit" class="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold">সাবমিট (${answeredCnt}/${lessonMock.questions.length})</button>
+      </div>
+    </div>
+  `;
+
+  document.querySelectorAll(".lm-jump").forEach(b => b.addEventListener("click", () => { lessonMock.curIdx = Number(b.dataset.lmjump); renderLessonFinalMock(); }));
+  document.querySelectorAll(".lm-opt").forEach(b => b.addEventListener("click", () => { lessonMock.answers[lessonMock.curIdx] = Number(b.dataset.lmopt); renderLessonFinalMock(); }));
+  document.getElementById("btnLmPrev").addEventListener("click", () => { lessonMock.curIdx--; renderLessonFinalMock(); });
+  document.getElementById("btnLmClear").addEventListener("click", () => { delete lessonMock.answers[lessonMock.curIdx]; renderLessonFinalMock(); });
+  const nxt = document.getElementById("btnLmNext");
+  if (nxt) nxt.addEventListener("click", () => { lessonMock.curIdx++; renderLessonFinalMock(); });
+  document.getElementById("btnLmSubmit").addEventListener("click", submitLessonFinalMock);
+  renderMath(body);
+}
+
+function submitLessonFinalMock() {
+  clearInterval(lessonMockTimerInt);
+  if (!lessonMock || lessonMock.submitted) return;
+  lessonMock.submitted = true;
+  let correct = 0, wrong = 0;
+  lessonMock.questions.forEach((item, i) => {
+    const p = lessonMock.answers[i];
+    if (p == null) return;
+    if (p === item.display.ans) correct++;
+    else {
+      wrong++;
+      if (!state.mistakes.includes(item.baseId)) state.mistakes.push(item.baseId);
+    }
+  });
+  const score = +(correct - wrong * lessonMock.neg).toFixed(2);
+  const total = lessonMock.questions.length;
+  const passTarget = +(total * 0.75).toFixed(2);
+  const passed = score >= passTarget;
+
+  if (!state.lessonMocks) state.lessonMocks = {};
+  const prev = state.lessonMocks[lessonMock.lessonId] || { bestScore: -99, bestPct: 0, passed: false, attempts: 0 };
+  const pct = Math.max(0, Math.round((score / total) * 100));
+  state.lessonMocks[lessonMock.lessonId] = {
+    bestScore: Math.max(prev.bestScore, score),
+    bestPct: Math.max(prev.bestPct, pct),
+    passed: prev.passed || passed,
+    attempts: prev.attempts + 1
+  };
+  if (passed) {
+    state.xp += 80;
+    if (typeof confetti === "function") {
+      try { confetti({ particleCount: 75, spread: 70, origin: { y: 0.6 } }); } catch (e) {}
+    }
+  }
+  saveState();
+  renderLessonFinalMock();
 }
 
 function startBossQuiz(moduleId) {
@@ -1198,6 +1434,8 @@ function closePlayer() {
   }
   closeLessonAiDrawer();
   clearPlayerTimers();
+  clearInterval(lessonMockTimerInt);
+  lessonMock = null;
   session = null;
   const ov = document.getElementById("playerOverlay");
   ov.classList.add("hidden");
@@ -1251,7 +1489,8 @@ function renderPlayerStep() {
 
 function renderCardStep(step) {
   const c = step.card;
-  const strict = state.strictMode;
+  const alreadyRead = Boolean(session.readCardIds && session.readCardIds.has(c.id)) && !step.isRedirect;
+  const strict = state.strictMode && !alreadyRead;
   session.slideGateLeft = strict ? 5 : 0;
   session.understoodChecked = !strict;
 
@@ -1411,6 +1650,7 @@ function renderCardStep(step) {
 
   document.getElementById("btnNextStep").addEventListener("click", () => {
     if (session.slideGateLeft > 0 || !session.understoodChecked) return;
+    if (session.readCardIds) session.readCardIds.add(c.id);
     session.idx++;
     saveLessonProgressSnapshot(false);
     renderPlayerStep();
@@ -1724,18 +1964,20 @@ function renderSessionSummary() {
   closeLessonAiDrawer();
   document.getElementById("playerProgressBar").style.width = "100%";
   const acc = session.firstAttemptTotal ? Math.round((session.firstAttemptCorrect / session.firstAttemptTotal) * 100) : 100;
+  const isLessonLearn = session.kind === "lesson";
   const threshold = session.kind === "boss" ? 80 : 75;
-  const passed = acc >= threshold;
+  const passed = isLessonLearn ? true : (acc >= threshold);
 
-  if (session.kind === "lesson") {
+  if (isLessonLearn) {
     if (state.lessonProgress) delete state.lessonProgress[`${session.lessonId}:${session.mode}`];
-    const prev = state.completedLessons[session.lessonId] || { bestAcc: 0, passed: false, attempts: 0 };
+    const prev = state.completedLessons[session.lessonId] || { bestAcc: 0, passed: false, learned: false, attempts: 0 };
     state.completedLessons[session.lessonId] = {
       bestAcc: Math.max(prev.bestAcc, acc),
-      passed: prev.passed || passed,
+      passed: prev.passed,
+      learned: true,
       attempts: prev.attempts + 1
     };
-    if (passed) state.xp += 50;
+    state.xp += 40;
   } else if (session.kind === "boss") {
     const prev = state.bossPassed[session.moduleId] || { bestAcc: 0, passed: false };
     state.bossPassed[session.moduleId] = {
@@ -1803,10 +2045,17 @@ function renderSessionSummary() {
 
   document.getElementById("playerFooter").innerHTML = `
     <div class="max-w-xl mx-auto flex items-center gap-2">
-      <button id="btnSummaryClose" class="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm">শেখার পথে ফিরে যাও</button>
+      ${isLessonLearn ? `<button id="btnLaunchLessonMock" class="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-sm">🏆 ১০ প্রশ্নের ফাইনাল মক দাও (পাস ≥৭.৫)</button>` : ''}
+      <button id="btnSummaryClose" class="${isLessonLearn ? 'px-4' : 'flex-1'} py-2.5 rounded-xl ${isLessonLearn ? 'glass-2 text-slate-200' : 'bg-emerald-600 hover:bg-emerald-500 text-white'} font-bold text-sm">শেখার পথ</button>
     </div>
   `;
   document.getElementById("btnSummaryClose").addEventListener("click", closePlayer);
+  const lmBtn = document.getElementById("btnLaunchLessonMock");
+  if (lmBtn) lmBtn.addEventListener("click", () => {
+    const lid = session.lessonId;
+    closePlayer();
+    startLessonFinalMock(lid);
+  });
 
   const remBtn = document.getElementById("btnAiRemediateMissed");
   if (remBtn) remBtn.addEventListener("click", () => {
