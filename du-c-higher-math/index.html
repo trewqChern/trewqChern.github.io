@@ -1331,6 +1331,14 @@ function renderCardStep(step) {
     </div>
   `;
 
+  let prevCardIdx = -1;
+  for (let pi = session.idx - 1; pi >= 0; pi--) {
+    if (session.queue[pi] && session.queue[pi].type === "card") {
+      prevCardIdx = pi;
+      break;
+    }
+  }
+
   const footer = document.getElementById("playerFooter");
   footer.innerHTML = `
     <div class="max-w-2xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
@@ -1340,11 +1348,21 @@ function renderCardStep(step) {
           <span>আমি সূত্র, উদাহরণ ও ফাঁদটি বুঝেছি</span>
         </label>
       ` : `<div class="text-xs text-slate-400">ফ্রি মোড চালু আছে</div>`}
-      <button id="btnNextStep" class="px-5 py-2.5 rounded-xl font-bold text-sm transition ${strict ? 'bg-slate-700 text-slate-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-500 text-white'}" ${strict ? 'disabled' : ''}>
-        ${strict ? `মনোযোগ দিয়ে পড়ো (${session.slideGateLeft} সে.)` : (step.isRedirect ? 'বুঝেছি, নতুন প্রশ্ন দাও →' : 'পরবর্তী ধাপ →')}
-      </button>
+      <div class="flex items-center gap-2 justify-end">
+        ${prevCardIdx >= 0 ? `<button id="btnPrevCard" class="px-3.5 py-2.5 rounded-xl glass-2 hover:bg-slate-700/70 text-slate-200 font-bold text-xs sm:text-sm transition">← আগের কার্ড</button>` : ''}
+        <button id="btnNextStep" class="px-5 py-2.5 rounded-xl font-bold text-sm transition ${strict ? 'bg-slate-700 text-slate-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-500 text-white'}" ${strict ? 'disabled' : ''}>
+          ${strict ? `মনোযোগ দিয়ে পড়ো (${session.slideGateLeft} সে.)` : (step.isRedirect ? 'বুঝেছি, নতুন প্রশ্ন দাও →' : 'পরবর্তী ধাপ →')}
+        </button>
+      </div>
     </div>
   `;
+
+  const btnPrev = document.getElementById("btnPrevCard");
+  if (btnPrev) btnPrev.addEventListener("click", () => {
+    session.idx = prevCardIdx;
+    saveLessonProgressSnapshot(false);
+    renderPlayerStep();
+  });
 
   const btnEx = document.getElementById("btnRevealExample");
   if (btnEx) btnEx.addEventListener("click", () => {
@@ -1478,13 +1496,32 @@ function renderMcqStep(step) {
     </div>
   `;
 
+  let prevCardIdx = -1;
+  for (let pi = session.idx - 1; pi >= 0; pi--) {
+    if (session.queue[pi] && session.queue[pi].type === "card") {
+      prevCardIdx = pi;
+      break;
+    }
+  }
+
   const footer = document.getElementById("playerFooter");
   footer.innerHTML = `
     <div class="max-w-2xl mx-auto flex items-center justify-between gap-2">
-      <span class="text-xs text-slate-400 hidden sm:inline">শর্টকাট: 1–4 নির্বাচন, Enter পরবর্তী</span>
+      <div class="flex items-center gap-2">
+        ${prevCardIdx >= 0 ? `<button id="btnPrevCardMcq" class="px-3.5 py-2.5 rounded-xl glass-2 hover:bg-slate-700/70 text-slate-200 font-bold text-xs sm:text-sm transition">← আগের কার্ড</button>` : ''}
+        <span class="text-xs text-slate-400 hidden sm:inline">শর্টকাট: 1–4 নির্বাচন, Enter পরবর্তী</span>
+      </div>
       <button id="btnMcqNext" disabled class="ml-auto px-5 py-2.5 rounded-xl font-bold text-sm bg-slate-700 text-slate-400 cursor-not-allowed">উত্তর নির্বাচন করো</button>
     </div>
   `;
+
+  const btnPrevMcq = document.getElementById("btnPrevCardMcq");
+  if (btnPrevMcq) btnPrevMcq.addEventListener("click", () => {
+    clearInterval(bossQuestionTimer);
+    session.idx = prevCardIdx;
+    saveLessonProgressSnapshot(false);
+    renderPlayerStep();
+  });
 
   document.getElementById("btnBookmarkQ").addEventListener("click", () => {
     const i = state.bookmarks.indexOf(step.baseId);
