@@ -1,4 +1,4 @@
-const CACHE_NAME = "du-c-math-pwa-v1";
+const CACHE_NAME = "du-c-math-pwa-v2";
 const APP_SHELL = [
   "./",
   "./index.html",
